@@ -8,3 +8,4 @@ VERSION
 .update-rolledback
 node_modules/
 .DS_Store
+data/

@@ -101,12 +101,24 @@ node test/update-test.js   # bijwerken, weigeren van een kapotte versie en terug
 
 ## Bediening
 
-- **Tikken** op een tegel schakelt aan/uit.
-- **Lang indrukken** op een lamp of gordijn opent de schuif voor helderheid of stand.
-- **Tikken op de thermostaat** opent de doeltemperatuur: kies met − en + en bevestig met Instellen.
-- **Vegen** naar links/rechts wisselt tussen Thuis, Muziek en Klok. Tikken op de puntjes onderaan kan ook.
+**Schermen (vegen):** Muziek ← **Beginscherm** → de kamers en zones die je aanzet.
+
+- **Beginscherm:** een raster van 4×3 vakken met tegels van 1×1, 2×1, 1×2 of 2×2. Mogelijk zijn lampen, groepen ("Alle lampen"), scènes, schakelaars, de thermostaat (op 2×2 groot met − en +), een klok (analoog of digitaal), het weer en "Nu speelt".
+- **Kamerschermen:** per kamer of zone alle tegels. In de instellingen onder *Schermen* zet je ze aan of uit en kies je de volgorde. Hue-zones staan standaard uit. Een groot klokscherm kan er ook bij.
+- **Muziek:** wat er speelt, met bediening en volume, plus je Sonos-favorieten en Sonos-playlists om af te spelen. Zoeken in Apple Music of andere diensten kan niet; bewaar wat je wilt horen als favoriet in de Sonos-app.
+
+**Tikken en vasthouden:**
+
+- Tikken op een tegel schakelt aan/uit; een scène wordt geactiveerd.
+- Lang indrukken op een lamp opent helderheid en, als de lamp dat kan, kleurtemperatuur.
 - Sloten en garagedeuren vragen eerst om bevestiging.
-- De kamers en de volgorde komen uit de Accessoires-pagina van de Homebridge UI. Daar verbergen of hernoemen werkt ook hier door.
+
+**Indelen:** het potlood onderaan het beginscherm (of *Beginscherm indelen* in de instellingen) opent de editor:
+
+- tik op een leeg vak om er iets op te zetten;
+- tik op een tegel voor de grootte, verplaatsen, wisselen met een andere tegel of weghalen.
+
+**Uiterlijk:** in de instellingen kies je Warm, Oceaan, Donker of Nacht, of een eigen foto. De foto wordt in de browser verkleind tot 1024×768 voordat hij naar de Pi gaat, en staat in `data/` (blijft bewaard bij updates).
 
 ## Uitproberen zonder Homebridge
 

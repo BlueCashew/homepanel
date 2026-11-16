@@ -79,6 +79,43 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
 .toggle.is-on .track { background: #6fd3a8; }
 .toggle.is-on .knob { left: 27px; }
 
+/* Thema's */
+.themes:after { content: ""; display: table; clear: both; }
+.theme { position: relative; float: left; width: 31%; margin: 0 3.5% 12px 0; cursor: pointer; }
+.theme:nth-child(3n) { margin-right: 0; }
+.th-sw { height: 74px; border-radius: 16px; background-size: cover; background-position: center; box-shadow: inset 0 0 0 1px rgba(255,255,255,.15); }
+.th-sw i { position: absolute; left: 10px; top: 10px; width: 28px; height: 22px; border-radius: 7px; background: rgba(255,255,255,.35); }
+.th-sw b { position: absolute; left: 44px; top: 10px; width: 28px; height: 22px; border-radius: 7px; background: rgba(255,255,255,.92); }
+.th-name { font-size: 14px; font-weight: 600; margin-top: 6px; color: rgba(244,240,230,.85); }
+.theme.is-on .th-sw { box-shadow: 0 0 0 3px #f6d98f; }
+.theme.is-on .th-name { color: #f6d98f; }
+.sw-warm { background: linear-gradient(135deg, #f6a944 0%, #e7772b 52%, #c4461e 100%); }
+.sw-oceaan { background: linear-gradient(135deg, #1e7f98 0%, #135174 50%, #0e2c50 100%); }
+.sw-donker { background: linear-gradient(135deg, #17233a 0%, #1c3a44 100%); }
+.sw-nacht { background: #06070a; }
+.sw-nacht i { background: rgba(183,165,139,.2); } .sw-nacht b { background: rgba(214,150,70,.72); }
+.sw-eigen { background-color: rgba(255,255,255,.1); }
+.sw-eigen.leeg:after { content: "+"; position: absolute; left: 0; right: 0; top: 18px; text-align: center; font-size: 30px; font-weight: 200; color: rgba(255,255,255,.6); }
+.sw-eigen.leeg i, .sw-eigen.leeg b { display: none; }
+#file { position: absolute; left: -9999px; width: 1px; height: 1px; }
+.btnrow:after { content: ""; display: table; clear: both; }
+.btnrow button { float: left; width: 49%; }
+.btnrow button + button { float: right; }
+.btnrow button.secondary { margin-top: 16px; }
+
+/* Schermen */
+.scr { position: relative; height: 54px; border-bottom: 1px solid rgba(255,255,255,.08); }
+.scr:last-child { border-bottom: 0; }
+.scr-name { position: absolute; left: 0; right: 168px; top: 0; line-height: 54px; font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scr-name small { font-weight: 500; font-size: 12px; margin-left: 8px; padding: 2px 7px; border-radius: 8px; background: rgba(255,255,255,.12); color: rgba(244,240,230,.7); }
+.scr.is-off .scr-name { color: rgba(244,240,230,.45); }
+.scr-mv { position: absolute; top: 9px; width: 36px; height: 36px; border-radius: 18px; background: rgba(255,255,255,.1); text-align: center; line-height: 36px; font-size: 16px; cursor: pointer; }
+.scr-up { right: 112px; } .scr-down { right: 70px; }
+.scr-mv.is-off { opacity: .25; }
+.scr .toggle { position: absolute; right: 0; top: 11px; margin: 0; padding: 0; width: 56px; min-height: 32px; }
+.scr-fixed { position: relative; height: 44px; line-height: 44px; font-size: 15px; color: rgba(244,240,230,.6); }
+.scr-list { max-height: 520px; overflow-y: auto; -webkit-overflow-scrolling: touch; margin-top: 6px; }
+
 @media (max-width: 760px) {
   .wrap { padding: 24px 16px 32px 16px; }
   .col, .col + .col { float: none; width: auto; }
@@ -96,6 +133,26 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
 
   <div class="cols">
   <div class="col">
+    <div class="card">
+      <div class="card-head">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="5" rx="2"/><rect x="13" y="10" width="8" height="11" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/></svg></div>
+        <h2>Beginscherm</h2>
+      </div>
+      <p>Kies welke tegels op het eerste scherm staan, waar en hoe groot. Dit kan ook op het paneel zelf, met het potlood onderaan het beginscherm.</p>
+      <button id="b-edit">Beginscherm indelen</button>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.4A4.6 4.6 0 0 0 22 10.8C22 5.9 17.5 2 12 2zM6.5 13a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm3-4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm3 4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/></svg></div>
+        <h2>Uiterlijk</h2>
+      </div>
+      <div class="themes" id="themes"></div>
+      <input type="file" id="file" accept="image/*">
+      <div class="btnrow"><button id="b-photo">Eigen foto kiezen</button><button id="b-photo-del" class="secondary" style="display:none">Foto verwijderen</button></div>
+      <div class="msg" id="m-look"></div>
+    </div>
+
     <div class="card">
       <div class="card-head">
         <div class="icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.2 3.6 10.1a1 1 0 0 0 .64 1.77H5.6V19a1.5 1.5 0 0 0 1.5 1.5h3.4v-5h3v5h3.4A1.5 1.5 0 0 0 18.4 19v-7.13h1.36a1 1 0 0 0 .64-1.77L12 3.2z"/></svg></div>
@@ -126,6 +183,17 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
   </div>
 
   <div class="col">
+    <div class="card">
+      <div class="card-head">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="5" width="6" height="14" rx="2" opacity=".5"/><rect x="9" y="3" width="6" height="18" rx="2"/><rect x="16" y="5" width="6" height="14" rx="2" opacity=".5"/></svg></div>
+        <h2>Schermen</h2>
+      </div>
+      <p>Welke kamers en zones een eigen scherm krijgen, en in welke volgorde je ernaartoe veegt. Muziek staat altijd links, daarna het beginscherm.</p>
+      <div class="scr-fixed">1. Muziek &nbsp;·&nbsp; 2. Beginscherm &nbsp;·&nbsp; daarna:</div>
+      <div class="scr-list" id="screens">Laden…</div>
+      <div class="msg" id="m-scr"></div>
+    </div>
+
     <div class="card">
       <div class="card-head">
         <div class="icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-4 12.7V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.3A7 7 0 0 0 12 2z"/><rect x="9" y="19.5" width="6" height="2.5" rx="1.2"/></svg></div>
@@ -274,9 +342,121 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
   $('b4').onclick = function () {
     call('POST', { hue: 'unpair' }, function (d) { $('m3').className = 'msg'; $('m3').textContent = d.ok ? 'Ontkoppeld. Lampen lopen weer via Homebridge.' : d.error; status(); });
   };
+  /* ----------------------------------------------------- uiterlijk */
+  var THEMES = [['warm', 'Warm'], ['oceaan', 'Oceaan'], ['donker', 'Donker'], ['nacht', 'Nacht'], ['eigen', 'Eigen foto']];
+  var look = { theme: 'warm', bg: 0 };
+  function drawThemes() {
+    var box = $('themes');
+    box.innerHTML = '';
+    THEMES.forEach(function (t) {
+      var d = document.createElement('div'), sw;
+      d.className = 'theme' + (look.theme === t[0] ? ' is-on' : '');
+      d.innerHTML = '<div class="th-sw sw-' + t[0] + (t[0] === 'eigen' && !look.bg ? ' leeg' : '') + '"><i></i><b></b></div><div class="th-name">' + t[1] + '</div>';
+      sw = d.children[0];
+      if (t[0] === 'eigen' && look.bg) { sw.style.backgroundImage = 'url("bg?v=' + look.bg + '")'; }
+      d.onclick = function () {
+        if (t[0] === 'eigen' && !look.bg) { $('file').click(); return; }
+        call2('api/layout', { theme: t[0] }, function (r) {
+          if (!r.ok) { show($('m-look'), r, ''); return; }
+          look.theme = t[0]; drawThemes(); $('m-look').className = 'msg ok'; $('m-look').textContent = 'Thema ' + t[1] + ' staat aan.';
+        });
+      };
+      box.appendChild(d);
+    });
+    $('b-photo-del').style.display = look.bg ? '' : 'none';
+    $('b-photo').textContent = look.bg ? 'Andere foto kiezen' : 'Eigen foto kiezen';
+  }
+  function call2(url, body, cb) {
+    var x = new XMLHttpRequest();
+    x.open(body ? 'POST' : 'GET', url, true);
+    x.onreadystatechange = function () {
+      var d = null;
+      if (x.readyState !== 4) { return; }
+      try { d = JSON.parse(x.responseText); } catch (e) { d = null; }
+      cb(d || { ok: false, error: 'Geen verbinding met het paneel' });
+    };
+    if (body) { x.setRequestHeader('Content-Type', 'application/json'); x.send(JSON.stringify(body)); } else { x.send(); }
+  }
+  /* Foto verkleinen tot het formaat van het paneel (1024 x 768), anders loopt de oude iPad vast. */
+  $('b-photo').onclick = function () { $('file').click(); };
+  $('file').onchange = function () {
+    var f = this.files && this.files[0], rd;
+    if (!f) { return; }
+    $('m-look').className = 'msg wait'; $('m-look').textContent = 'Foto verkleinen…';
+    rd = new FileReader();
+    rd.onload = function () {
+      var img = new Image();
+      img.onload = function () {
+        var W = 1024, H = 768, c = document.createElement('canvas'), ctx, s, sw, sh;
+        c.width = W; c.height = H; ctx = c.getContext('2d');
+        s = Math.max(W / img.width, H / img.height); sw = W / s; sh = H / s;
+        ctx.drawImage(img, (img.width - sw) / 2, (img.height - sh) / 2, sw, sh, 0, 0, W, H);
+        $('m-look').textContent = 'Uploaden…';
+        call2('api/background', { image: c.toDataURL('image/jpeg', 0.82) }, function (r) {
+          if (!r.ok) { show($('m-look'), r, ''); return; }
+          look.bg = r.bg; look.theme = 'eigen'; drawThemes();
+          $('m-look').className = 'msg ok'; $('m-look').textContent = 'Je foto is de achtergrond.';
+        });
+      };
+      img.onerror = function () { $('m-look').className = 'msg err'; $('m-look').textContent = 'Deze afbeelding kan niet gelezen worden.'; };
+      img.src = rd.result;
+    };
+    rd.readAsDataURL(f);
+    this.value = '';
+  };
+  $('b-photo-del').onclick = function () {
+    call2('api/background', { remove: true }, function (r) {
+      if (!r.ok) { show($('m-look'), r, ''); return; }
+      look.bg = 0; if (look.theme === 'eigen') { look.theme = 'warm'; }
+      drawThemes(); $('m-look').className = 'msg ok'; $('m-look').textContent = 'Foto verwijderd.';
+    });
+  };
+
+  /* ------------------------------------------------------- schermen */
+  var screens = [], scrTimer = null;
+  function drawScreens() {
+    var box = $('screens');
+    box.innerHTML = '';
+    if (!screens.length) { box.textContent = 'Nog geen kamers gevonden.'; return; }
+    screens.forEach(function (s, i) {
+      var r = document.createElement('div');
+      r.className = 'scr' + (s.on ? '' : ' is-off');
+      r.innerHTML = '<div class="scr-name"></div><div class="scr-mv scr-up' + (i === 0 ? ' is-off' : '') + '">&#9650;</div><div class="scr-mv scr-down' + (i === screens.length - 1 ? ' is-off' : '') + '">&#9660;</div>' +
+        '<label class="toggle' + (s.on ? ' is-on' : '') + '"><input type="checkbox"' + (s.on ? ' checked' : '') + '><span class="track"><span class="knob"></span></span></label>';
+      r.children[0].textContent = s.name;
+      if (s.zone) { r.children[0].innerHTML += ' <small>zone</small>'; }
+      r.children[1].onclick = function () { if (i > 0) { screens.splice(i - 1, 0, screens.splice(i, 1)[0]); changed(); } };
+      r.children[2].onclick = function () { if (i < screens.length - 1) { screens.splice(i + 1, 0, screens.splice(i, 1)[0]); changed(); } };
+      r.children[3].children[0].onchange = function () { s.on = this.checked; changed(); };
+      box.appendChild(r);
+    });
+  }
+  function changed() {
+    drawScreens();
+    clearTimeout(scrTimer);
+    scrTimer = setTimeout(function () {
+      call2('api/layout', { screens: screens.map(function (s) { return { key: s.key, on: s.on }; }) }, function (r) {
+        var m = $('m-scr'), n = screens.filter(function (s) { return s.on; }).length;
+        if (!r.ok) { show(m, r, ''); return; }
+        m.className = 'msg ok'; m.textContent = 'Opgeslagen: ' + n + (n === 1 ? ' scherm' : ' schermen') + ' na het beginscherm.';
+      });
+    }, 500);
+  }
+  function loadLayout() {
+    call2('api/state?t=' + Date.now(), null, function (d) {
+      if (!d.ok || !d.layout) { $('screens').textContent = 'Kon de schermen niet laden.'; return; }
+      look.theme = d.layout.theme; look.bg = d.bg || 0;
+      screens = d.layout.screens || [];
+      drawThemes(); drawScreens();
+    });
+  }
+  $('b-edit').onclick = function () { window.location.href = 'editor'; };
+
   /* Terug met JavaScript: een gewone link opent in een beginscherm-app op iOS 9 Safari. */
   $('back').onclick = function () { window.location.href = './'; };
   document.addEventListener('touchstart', function () {}, true); // laat :active werken op iOS
+  drawThemes();
+  loadLayout();
   status();
 }());
 </script>

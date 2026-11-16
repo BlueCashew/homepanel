@@ -71,13 +71,24 @@ function soapOut(action, inner) {
 }
 const didl = '&lt;DIDL-Lite xmlns:dc=&quot;http://purl.org/dc/elements/1.1/&quot; xmlns:upnp=&quot;urn:schemas-upnp-org:metadata-1-0/upnp/&quot;&gt;&lt;item id=&quot;-1&quot;&gt;&lt;res protocolInfo=&quot;x&quot; duration=&quot;0:03:20&quot;&gt;x-sonos-spotify:spotify%3atrack%3a1&lt;/res&gt;&lt;upnp:albumArtURI&gt;/getaa?s=1&amp;amp;u=x-sonos-spotify%3aspotify&lt;/upnp:albumArtURI&gt;&lt;dc:title&gt;Rock &amp;amp; Roll&lt;/dc:title&gt;&lt;dc:creator&gt;De Band&lt;/dc:creator&gt;&lt;upnp:album&gt;Het Album&lt;/upnp:album&gt;&lt;/item&gt;&lt;/DIDL-Lite&gt;';
 const zones = '&lt;ZoneGroupState&gt;&lt;ZoneGroups&gt;&lt;ZoneGroup Coordinator=&quot;RINCON_A&quot; ID=&quot;RINCON_A:1&quot;&gt;&lt;ZoneGroupMember UUID=&quot;RINCON_A&quot; Location=&quot;http://127.0.0.1:1400/xml/device_description.xml&quot; ZoneName=&quot;Woonkamer&quot; HTSatChanMapSet=&quot;x&quot;&gt;&lt;Satellite UUID=&quot;RINCON_B&quot; Location=&quot;http://127.0.0.9:1400/xml/device_description.xml&quot; ZoneName=&quot;Woonkamer&quot; Invisible=&quot;1&quot;/&gt;&lt;/ZoneGroupMember&gt;&lt;/ZoneGroup&gt;&lt;/ZoneGroups&gt;&lt;/ZoneGroupState&gt;';
+const escx = (x) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const NS = 'xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/" xmlns:r="urn:schemas-rinconnetworks-com:metadata-1-0/"';
+const metaPl = '<DIDL-Lite ' + NS + '><item id="1006206cplaylist"><dc:title>Focus</dc:title><upnp:class>object.container.playlistContainer</upnp:class><desc id="cdudn">SA_RINCON52231_X_#Svc52231-0-Token</desc></item></DIDL-Lite>';
+const metaRadio = '<DIDL-Lite ' + NS + '><item id="F00092020s6707"><dc:title>NPO Radio 2</dc:title><upnp:class>object.item.audioItem.audioBroadcast</upnp:class></item></DIDL-Lite>';
+const favDidl = '<DIDL-Lite ' + NS + '>' +
+  '<item id="FV:2/3" parentID="FV:2"><dc:title>Focus &amp; rust</dc:title><upnp:class>object.itemobject.item.sonos-favorite</upnp:class><res protocolInfo="x-rincon-cpcontainer:*:*:*">x-rincon-cpcontainer:1006206cplaylist</res><upnp:albumArtURI>/getaa?s=1&amp;u=fav</upnp:albumArtURI><r:description>Apple Music</r:description><r:resMD>' + escx(metaPl) + '</r:resMD></item>' +
+  '<item id="FV:2/4" parentID="FV:2"><dc:title>NPO Radio 2</dc:title><upnp:class>object.itemobject.item.sonos-favorite</upnp:class><res protocolInfo="x-sonosapi-stream:*:*:*">x-sonosapi-stream:s6707?sid=303&amp;flags=8224</res><r:description>Sonos Radio</r:description><r:resMD>' + escx(metaRadio) + '</r:resMD></item>' +
+  '</DIDL-Lite>';
+const sqDidl = '<DIDL-Lite ' + NS + '><container id="SQ:1" parentID="SQ:"><dc:title>Feestje</dc:title><upnp:class>object.container.playlistContainer</upnp:class><res protocolInfo="file:*:audio/mpegurl:*">file:///jffs/settings/savedqueues.rsq#1</res></container></DIDL-Lite>';
 const sonosMock = http.createServer((req, res) => {
   let body = '';
   req.on('data', (c) => { body += c; });
   req.on('end', () => {
     if (req.url.indexOf('/getaa') === 0) { res.writeHead(200, { 'Content-Type': 'image/jpeg' }); return res.end(Buffer.from([255, 216, 255])); }
     const action = /#(\w+)"/.exec(req.headers.soapaction || '')[1];
-    sonosLog.push(action + (/<DesiredVolume>(\d+)/.exec(body) ? '=' + /<DesiredVolume>(\d+)/.exec(body)[1] : ''));
+    sonosLog.push(action + (/<DesiredVolume>(\d+)/.exec(body) ? '=' + /<DesiredVolume>(\d+)/.exec(body)[1] : '') +
+      (/<CurrentURI>([^<]*)/.exec(body) ? '=' + /<CurrentURI>([^<]*)/.exec(body)[1] : '') + (/<EnqueuedURI>([^<]*)/.exec(body) ? '=' + /<EnqueuedURI>([^<]*)/.exec(body)[1] : '') +
+      (action === 'SetAVTransportURI' && /<CurrentURIMetaData>&lt;DIDL/.test(body) ? ' +meta' : '') + (action === 'AddURIToQueue' && /<EnqueuedURIMetaData>&lt;DIDL/.test(body) ? ' +meta' : ''));
     const map = {
       GetZoneGroupState: '<ZoneGroupState>' + zones + '</ZoneGroupState>',
       GetTransportInfo: '<CurrentTransportState>PLAYING</CurrentTransportState>',
@@ -85,6 +96,7 @@ const sonosMock = http.createServer((req, res) => {
       GetMediaInfo: '<CurrentURI>x-rincon-queue:RINCON_A#0</CurrentURI><CurrentURIMetaData></CurrentURIMetaData>',
       GetVolume: '<CurrentVolume>' + volume + '</CurrentVolume>',
       GetMute: '<CurrentMute>0</CurrentMute>',
+      Browse: '<Result>' + escx(/<ObjectID>FV:2/.test(body) ? favDidl : sqDidl) + '</Result><NumberReturned>2</NumberReturned>',
     };
     if (action === 'SetVolume') volume = Number(/<DesiredVolume>(\d+)/.exec(body)[1]);
     res.writeHead(200, { 'Content-Type': 'text/xml' });
@@ -106,6 +118,7 @@ const hueRes = [
   { id: 'z2', type: 'zigbee_connectivity', owner: { rid: 'dev2', rtype: 'device' }, status: 'connected' },
   { id: 'z3', type: 'zigbee_connectivity', owner: { rid: 'dev3', rtype: 'device' }, status: 'connectivity_issue' },
   { id: 'r1', type: 'room', metadata: { name: 'Zolderkamer' }, children: [{ rid: 'dev1', rtype: 'device' }, { rid: 'dev2', rtype: 'device' }], services: [{ rid: 'g1', rtype: 'grouped_light' }] },
+  { id: 'zn1', type: 'zone', metadata: { name: 'Beneden' }, children: [{ rid: 'l2', rtype: 'light' }], services: [] },
   { id: 'g1', type: 'grouped_light', owner: { rid: 'r1', rtype: 'room' }, on: { on: true }, dimming: { brightness: 60 } },
   { id: 's2', type: 'scene', metadata: { name: 'Lezen' }, group: { rid: 'r1', rtype: 'room' }, status: { active: 'static' } },
   { id: 's1', type: 'scene', metadata: { name: 'Avond' }, group: { rid: 'r1', rtype: 'room' }, status: { active: 'inactive' } },
@@ -164,6 +177,7 @@ function call(port, method, p, body) {
     hide: ['Los schakelaartje'],
   }));
   process.env.HUISPANEEL_CONFIG = cfgFile;
+  process.env.HUISPANEEL_DATA = fs.mkdtempSync(path.join(os.tmpdir(), 'huispaneel-data-'));
   const app = require('../server.js');
   await new Promise((r) => app.server.listen(0, '127.0.0.1', r));
   const port = app.server.address().port;
@@ -252,6 +266,25 @@ function call(port, method, p, body) {
     r = await call(port, 'POST', '/api/sonos', { action: 'rm -rf' });
     assert.strictEqual(r.status, 502);
     console.log('ok  sonos: nu speelt, hoes, volume, pauze, volgende');
+
+    await new Promise((res2) => setTimeout(res2, 2100));
+    r = await call(port, 'GET', '/api/state');
+    const fv = r.json.favorites;
+    assert.deepStrictEqual(fv.map((x) => x.title + '|' + x.desc + '|' + x.kind), ['Focus & rust|Apple Music|favorite', 'NPO Radio 2|Sonos Radio|favorite', 'Feestje|Sonos-playlist|playlist']);
+    assert.ok(/^\/api\/sonos\/art\?k=/.test(fv[0].art), 'hoes via de Pi'); assert.strictEqual(fv[1].art, '');
+    const fart = await call(port, 'GET', fv[0].art);
+    assert.strictEqual(fart.status, 200, 'hoes van een favoriet ophalen');
+    sonosLog.length = 0;
+    assert.strictEqual((await call(port, 'POST', '/api/sonos', { action: 'favorite', value: 'FV:2/3' })).status, 200);
+    assert.deepStrictEqual(sonosLog, ['RemoveAllTracksFromQueue', 'AddURIToQueue=x-rincon-cpcontainer:1006206cplaylist +meta', 'SetAVTransportURI=x-rincon-queue:RINCON_A#0', 'Play'], 'playlist via de wachtrij');
+    sonosLog.length = 0;
+    assert.strictEqual((await call(port, 'POST', '/api/sonos', { action: 'favorite', value: 'FV:2/4' })).status, 200);
+    assert.deepStrictEqual(sonosLog, ['SetAVTransportURI=x-sonosapi-stream:s6707?sid=303&amp;flags=8224 +meta', 'Play'], 'zender direct');
+    sonosLog.length = 0;
+    assert.strictEqual((await call(port, 'POST', '/api/sonos', { action: 'favorite', value: 'SQ:1' })).status, 200);
+    assert.deepStrictEqual(sonosLog.slice(0, 2), ['RemoveAllTracksFromQueue', 'AddURIToQueue=file:///jffs/settings/savedqueues.rsq#1'], 'sonos-playlist via de wachtrij');
+    assert.strictEqual((await call(port, 'POST', '/api/sonos', { action: 'favorite', value: 'FV:2/999' })).status, 502);
+    console.log('ok  sonos: favorieten en playlists ophalen en afspelen');
   } else {
     console.log('--  sonos-test overgeslagen (poort 1400 bezet)');
   }
@@ -289,6 +322,47 @@ function call(port, method, p, body) {
   assert.strictEqual(by['Poster op frame'].char, 'On');
   console.log('ok  vormen uit de echte Homebridge: 6 van 10 services worden tegels, storing herkend');
 
+  /* ---- indeling, schermen, thema, achtergrond ---- */
+  r = await call(port, 'GET', '/api/state');
+  assert.strictEqual(r.json.layout.custom, false);
+  assert.ok(r.json.layout.home.length >= 4, 'standaardindeling');
+  assert.deepStrictEqual(r.json.layout.home[0], { type: 'device', ref: 'a8', x: 0, y: 0, w: 2, h: 2 }, 'thermostaat groot linksboven');
+  r = await call(port, 'POST', '/api/layout', { home: [
+    { type: 'clock', variant: 'digital', x: 0, y: 0, w: 2, h: 2 },
+    { type: 'weather', x: 1, y: 1, w: 1, h: 1 },          // overlapt de klok
+    { type: 'nowplaying', x: 3, y: 2, w: 2, h: 1 },       // valt buiten het raster
+    { type: 'script', x: 3, y: 0 },                        // onbekend soort
+    { type: 'device', x: 2, y: 0 },                        // zonder apparaat
+    { type: 'device', ref: 'a1', x: 2, y: 0, w: 2, h: 1, extra: 'weg' },
+  ] });
+  assert.strictEqual(r.status, 200);
+  r = await call(port, 'GET', '/api/state');
+  assert.deepStrictEqual(r.json.layout.home, [{ type: 'clock', x: 0, y: 0, w: 2, h: 2, variant: 'digital' }, { type: 'device', x: 2, y: 0, w: 2, h: 1, ref: 'a1' }], 'alleen geldige tegels');
+  assert.strictEqual(r.json.layout.custom, true);
+  r = await call(port, 'POST', '/api/layout', { screens: [{ key: 'clock', on: true }, { key: 'hb:Woonkamer', on: false }, { key: 'clock', on: false }] });
+  r = await call(port, 'GET', '/api/state');
+  assert.deepStrictEqual(r.json.layout.screens.map((x) => x.key + ':' + x.on), ['clock:true', 'hb:Woonkamer:false', 'hb:Overig:true'], 'opgeslagen volgorde, nieuwe kamers erachter');
+  assert.strictEqual((await call(port, 'POST', '/api/layout', { theme: 'roze' })).status, 400);
+  assert.strictEqual((await call(port, 'POST', '/api/layout', { theme: 'eigen' })).status, 400, 'eigen foto vereist een upload');
+  assert.strictEqual((await call(port, 'POST', '/api/layout', { theme: 'nacht' })).status, 200);
+  const jpg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(3000, 7)]);
+  assert.strictEqual((await call(port, 'POST', '/api/background', { image: 'data:image/png;base64,AAAA' })).status, 400);
+  r = await call(port, 'POST', '/api/background', { image: 'data:image/jpeg;base64,' + jpg.toString('base64') });
+  assert.strictEqual(r.status, 200); assert.ok(r.json.bg > 0);
+  const bgr = await call(port, 'GET', '/bg');
+  assert.strictEqual(bgr.status, 200); assert.strictEqual(bgr.raw.length, jpg.length); assert.strictEqual(bgr.type, 'image/jpeg');
+  r = await call(port, 'GET', '/api/state');
+  assert.strictEqual(r.json.layout.theme, 'eigen');
+  await call(port, 'POST', '/api/background', { remove: true });
+  r = await call(port, 'GET', '/api/state');
+  assert.strictEqual(r.json.layout.theme, 'warm'); assert.strictEqual(r.json.bg, 0);
+  assert.strictEqual((await call(port, 'GET', '/bg')).status, 404);
+  const saved = JSON.parse(fs.readFileSync(cfgFile, 'utf8'));
+  assert.strictEqual(saved.layout.home.length, 2, 'indeling bewaard in config.json');
+  await call(port, 'POST', '/api/layout', { home: null, screens: [] });
+  for (const pg of ['/editor', '/editor.js', '/setup']) assert.strictEqual((await call(port, 'GET', pg)).status, 200, pg);
+  console.log('ok  indeling: controle, schermen, thema\'s en eigen achtergrond');
+
   /* ---- Hue rechtstreeks ---- */
   r = await call(port, 'POST', '/api/setup', { hue: 'pair' });
   assert.strictEqual(r.status, 200, JSON.stringify(r.json));
@@ -309,17 +383,21 @@ function call(port, method, p, body) {
   await new Promise((res2) => setTimeout(res2, 2100)); // homebridge-cache laten verlopen
   r = await call(port, 'GET', '/api/state');
   const hr = r.json.rooms;
-  assert.deepStrictEqual(hr.map((x) => x.name), ['Zolderkamer', 'Overig', 'Woonkamer']);
+  assert.deepStrictEqual(hr.map((x) => x.name), ['Zolderkamer', 'Beneden', 'Overig', 'Woonkamer']);
+  assert.strictEqual(hr[1].zone, true); assert.strictEqual(hr[1].key, 'hue:zone:zn1');
+  assert.strictEqual(hr[0].tiles.filter((t) => t.name === 'Gang spot 2')[0].room, 'Zolderkamer', 'kamer gaat voor zone');
+  const scr = r.json.layout.screens;
+  assert.deepStrictEqual(scr.map((x) => x.name + ':' + x.on), ['Zolderkamer:true', 'Beneden:false', 'Overig:true', 'Woonkamer:true', 'Klok:false'], 'zones en klok standaard uit');
   assert.deepStrictEqual(hr[0].tiles.map((t) => t.name), ['Alle lampen', 'Zolderkamer spot 1', 'Gang spot 2', 'Avond', 'Lezen']);
   const ht = {}; hr[0].tiles.forEach((t) => { ht[t.name] = t; });
   assert.strictEqual(ht['Zolderkamer spot 1'].ct, 53); assert.strictEqual(ht['Zolderkamer spot 1'].text, 'Uit');
   assert.strictEqual(ht['Gang spot 2'].level, 50); assert.strictEqual(ht['Gang spot 2'].ct, undefined);
   assert.strictEqual(ht['Alle lampen'].on, true); assert.strictEqual(ht['Alle lampen'].level, 60);
   assert.strictEqual(ht['Lezen'].on, true); assert.strictEqual(ht['Avond'].on, false); assert.strictEqual(ht['Lezen'].kind, 'scene');
-  const overig = hr[1].tiles.map((t) => t.name);
+  const overig = hr[2].tiles.map((t) => t.name);
   assert.ok(overig.indexOf('Hue lamp via HB') === -1, 'Hue-lamp niet dubbel via Homebridge');
   assert.ok(overig.indexOf('Thermostaat') !== -1, 'Homebridge-tegels blijven');
-  const los = hr[1].tiles.filter((t) => t.name === 'Losse lamp')[0];
+  const los = hr[2].tiles.filter((t) => t.name === 'Losse lamp')[0];
   assert.ok(los && los.fault && los.text === 'Geen contact', 'lamp zonder kamer en zonder verbinding');
   console.log('ok  hue: kamers, groep, scènes, kleurtemperatuur, storing, geen dubbele lampen');
 

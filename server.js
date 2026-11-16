@@ -39,14 +39,15 @@ function loadConfig() {
   cfg.weather = Object.assign({ latitude: null, longitude: null, place: '' }, cfg.weather || {});
   cfg.hue = Object.assign({ host: '', key: '', name: '' }, cfg.hue || {});
   cfg.update = Object.assign({ auto: false, repo: 'BlueCashew/homepanel', branch: 'main' }, cfg.update || {});
+  cfg.layout = Object.assign({ theme: 'warm', home: null, screens: null }, cfg.layout || {});
   cfg.hide = cfg.hide || [];
   return cfg;
 }
 const config = loadConfig();
 const LISTEN_PORT = Number(process.env.HUISPANEEL_PORT) || config.port;
 function saveConfig() {
-  if (SELFTEST) return;
-  const out = { port: config.port, homebridge: config.homebridge, hue: config.hue, sonos: config.sonos, weather: config.weather, update: config.update, hide: config.hide };
+  if (SELFTEST || DEMO) return;
+  const out = { port: config.port, homebridge: config.homebridge, hue: config.hue, sonos: config.sonos, weather: config.weather, update: config.update, layout: config.layout, hide: config.hide };
   fs.writeFileSync(CONFIG_FILE, JSON.stringify(out, null, 2) + '\n', { mode: 0o600 });
   try { fs.chmodSync(CONFIG_FILE, 0o600); } catch (e) { /* niet erg */ }
 }
@@ -316,7 +317,7 @@ function buildRooms(data, opts) {
     if (def) def.tiles = def.tiles.concat(rest); else rooms.push({ name: 'Overig', isDefault: true, tiles: rest });
   }
   rooms.forEach((r) => { r.tiles = r.tiles.filter((t) => hide.indexOf(String(t.name).toLowerCase()) === -1); });
-  const out = rooms.filter((r) => r.tiles.length).map((r) => ({ name: r.name, tiles: r.tiles }));
+  const out = rooms.filter((r) => r.tiles.length).map((r) => ({ name: r.name, key: 'hb:' + r.name, tiles: r.tiles }));
   if (out.length === 1) out[0].name = 'Thuis';
   return out;
 }
@@ -357,6 +358,7 @@ const SOAP = {
   av: { path: '/MediaRenderer/AVTransport/Control', urn: 'urn:schemas-upnp-org:service:AVTransport:1' },
   rc: { path: '/MediaRenderer/RenderingControl/Control', urn: 'urn:schemas-upnp-org:service:RenderingControl:1' },
   zt: { path: '/ZoneGroupTopology/Control', urn: 'urn:schemas-upnp-org:service:ZoneGroupTopology:1' },
+  cd: { path: '/MediaServer/ContentDirectory/Control', urn: 'urn:schemas-upnp-org:service:ContentDirectory:1' },
 };
 
 async function soap(host, svc, action, args) {
@@ -432,14 +434,25 @@ async function sonosFind() {
   if (config.sonos.room) pick = groups.filter((g) => g.room.toLowerCase() === String(config.sonos.room).toLowerCase())[0];
   if (!pick && config.sonos.host) pick = groups.filter((g) => g.host === config.sonos.host)[0];
   if (!pick) pick = groups[0] || { host: seeds[0], room: '' };
-  sonos.host = pick.host; sonos.room = pick.room; sonos.foundAt = Date.now(); sonos.fails = 0;
+  sonos.host = pick.host; sonos.room = pick.room; sonos.uuid = pick.uuid || ''; sonos.foundAt = Date.now(); sonos.fails = 0;
+  if (!sonos.uuid) {
+    try {
+      const d = await request('GET', 'http://' + sonos.host + ':1400/xml/device_description.xml', { timeout: 4000 });
+      sonos.uuid = (/<UDN>uuid:([^<]+)<\/UDN>/.exec(d.body.toString('utf8')) || [])[1] || '';
+    } catch (e) { /* zonder uuid geen wachtrij */ }
+  }
   console.log('[sonos] gebruikt ' + (sonos.room || 'speler') + ' op ' + sonos.host);
   return sonos.host;
 }
 
+/* Hoezen lopen via de Pi: de iPad hoeft dan geen externe servers te vertrouwen, en ze worden bewaard. */
+const art = new Map();
 function artKey(url) {
   const k = crypto.createHash('sha1').update(url).digest('hex').slice(0, 12);
-  sonos.art = { key: k, url: url, data: sonos.art.key === k ? sonos.art.data : null, type: sonos.art.key === k ? sonos.art.type : null };
+  if (!art.has(k)) {
+    art.set(k, { url, data: null, type: null });
+    while (art.size > 80) art.delete(art.keys().next().value);
+  }
   return k;
 }
 
@@ -516,22 +529,95 @@ async function sonosDo(action, value) {
     if (isNaN(v)) throw new Error('Ongeldig volume');
     await soap(host, 'rc', 'SetVolume', { InstanceID: 0, Channel: 'Master', DesiredVolume: v });
   } else if (action === 'mute') await soap(host, 'rc', 'SetMute', { InstanceID: 0, Channel: 'Master', DesiredMute: value ? 1 : 0 });
+  else if (action === 'favorite') { await playFavorite(String(value)); return; }
   else throw new Error('Onbekende Sonos-actie');
   sonos.cacheAt = 0;
 }
 
 async function sonosArt(key) {
-  if (!sonos.art.key || sonos.art.key !== key) return null;
-  if (sonos.art.data) return sonos.art;
-  let url = sonos.art.url;
+  const a = art.get(key);
+  if (!a) return null;
+  if (a.data) return a;
+  let url = a.url;
   for (let i = 0; i < 4; i++) {
     const r = await request('GET', url, { timeout: 8000 });
     if (r.status >= 300 && r.status < 400 && r.headers.location) { url = new URL(r.headers.location, url).toString(); continue; }
-    if (r.status !== 200) return null;
-    if (sonos.art.key === key) { sonos.art.data = r.body; sonos.art.type = r.headers['content-type'] || 'image/jpeg'; }
-    return { data: r.body, type: r.headers['content-type'] || 'image/jpeg' };
+    if (r.status !== 200 || r.body.length > 2 * 1024 * 1024) return null;
+    a.data = r.body; a.type = r.headers['content-type'] || 'image/jpeg';
+    return a;
   }
   return null;
+}
+
+/* ----------------------------------------------------- sonos-favorieten */
+
+const favs = { list: null, at: 0, inflight: null, items: {} };
+
+function parseDidl(didl, host) {
+  const out = [];
+  const re = /<(item|container)\s([^>]*)>([\s\S]*?)<\/\1>/g;
+  let m;
+  while ((m = re.exec(didl))) {
+    const body = m[3];
+    const id = attr(' ' + m[2], 'id');
+    const uri = unesc(tag(body, 'res'));
+    if (!id || !uri) continue;
+    let a = unesc(tag(body, 'albumArtURI'));
+    if (a && a.charAt(0) === '/') a = 'http://' + host + ':1400' + a;
+    out.push({
+      id, title: unesc(tag(body, 'title')), desc: unesc(tag(body, 'description')),
+      uri, meta: unesc(tag(body, 'resMD')), art: a,
+    });
+  }
+  return out;
+}
+
+async function browse(host, objectId) {
+  const xml = await soap(host, 'cd', 'Browse', { ObjectID: objectId, BrowseFlag: 'BrowseDirectChildren', Filter: '*', StartingIndex: 0, RequestedCount: 100, SortCriteria: '' });
+  return parseDidl(unesc(tag(xml, 'Result')), host);
+}
+
+async function favLoad() {
+  if (favs.list && Date.now() - favs.at < 60000) return favs.list;
+  if (favs.inflight) return favs.inflight;
+  favs.inflight = (async () => {
+    try {
+      const host = await sonosFind();
+      const list = [];
+      const items = {};
+      const add = (x, kind) => {
+        items[x.id] = x;
+        list.push({ id: x.id, title: x.title, desc: kind === 'playlist' ? 'Sonos-playlist' : x.desc, kind, art: x.art ? '/api/sonos/art?k=' + artKey(x.art) : '' });
+      };
+      (await browse(host, 'FV:2')).forEach((x) => add(x, 'favorite'));
+      try { (await browse(host, 'SQ:')).forEach((x) => add(x, 'playlist')); } catch (e) { /* geen playlists */ }
+      favs.list = list; favs.items = items; favs.at = Date.now();
+      return list;
+    } finally {
+      favs.inflight = null;
+    }
+  })();
+  return favs.inflight;
+}
+
+/* Een favoriet afspelen: playlists en albums via de wachtrij, zenders en losse nummers direct. */
+async function playFavorite(id) {
+  if (!favs.items[id]) { favs.at = 0; await favLoad(); }
+  const f = favs.items[id];
+  if (!f) throw new Error('Deze favoriet bestaat niet meer');
+  const host = await sonosFind();
+  const isStream = /^(x-sonosapi-stream|x-sonosapi-radio|x-rincon-mp3radio|x-sonosapi-hls|aac:|hls-radio)/.test(f.uri);
+  const isContainer = !isStream && (/^x-rincon-cpcontainer:|^file:\/\/\/jffs\/settings\/savedqueues/.test(f.uri) || /<upnp:class>[^<]*container/i.test(f.meta));
+  if (isContainer) {
+    if (!sonos.uuid) throw new Error('Onbekende Sonos-speler');
+    await soap(host, 'av', 'RemoveAllTracksFromQueue', { InstanceID: 0 });
+    await soap(host, 'av', 'AddURIToQueue', { InstanceID: 0, EnqueuedURI: f.uri, EnqueuedURIMetaData: f.meta, DesiredFirstTrackNumberEnqueued: 0, EnqueueAsNext: 0 });
+    await soap(host, 'av', 'SetAVTransportURI', { InstanceID: 0, CurrentURI: 'x-rincon-queue:' + sonos.uuid + '#0', CurrentURIMetaData: '' });
+  } else {
+    await soap(host, 'av', 'SetAVTransportURI', { InstanceID: 0, CurrentURI: f.uri, CurrentURIMetaData: f.meta });
+  }
+  await soap(host, 'av', 'Play', { InstanceID: 0, Speed: 1 });
+  sonos.cacheAt = 0;
 }
 
 /* ------------------------------------------------------------------- hue */
@@ -714,7 +800,7 @@ function hueRooms(data) {
           const on = !!(sc.status && sc.status.active && sc.status.active !== 'inactive');
           tiles.push({ id: 'hue:scene:' + sc.id, name: (sc.metadata && sc.metadata.name) || 'Scène', type: 'HueScene', kind: 'scene', on, char: 'recall', onValue: true, offValue: true, text: on ? 'Actief' : '' });
         });
-      rooms.push({ name: (g.metadata && g.metadata.name) || (type === 'room' ? 'Kamer' : 'Zone'), tiles: tiles.filter((t) => hide.indexOf(String(t.name).toLowerCase()) === -1) });
+      rooms.push({ name: (g.metadata && g.metadata.name) || (type === 'room' ? 'Kamer' : 'Zone'), key: 'hue:' + type + ':' + g.id, zone: type === 'zone', tiles: tiles.filter((t) => hide.indexOf(String(t.name).toLowerCase()) === -1) });
     });
   });
   const loose = data.list.filter((x) => x.type === 'light' && !used[x.id]).map(lightTile)
@@ -743,6 +829,117 @@ async function hueSet(id, ch, value) {
   if (!body) throw new Error('Deze bediening kan niet bij dit Hue-onderdeel');
   await hueCall('PUT', '/clip/v2/resource/' + want + '/' + rid, body);
   hue.cacheAt = 0;
+}
+
+/* -------------------------------------------------------------- indeling */
+
+const GRID = { cols: 4, rows: 3 };
+const THEMES = ['warm', 'oceaan', 'donker', 'nacht', 'eigen'];
+const DATA = process.env.HUISPANEEL_DATA || path.join(ROOT, 'data');
+const BG_FILE = path.join(DATA, 'achtergrond.jpg');
+
+function bgVersion() {
+  try { return Math.round(fs.statSync(BG_FILE).mtimeMs); } catch (e) { return 0; }
+}
+
+/* Controleert een indeling: binnen het raster, niets over elkaar heen, alleen bekende soorten tegels. */
+function cleanHome(tiles) {
+  if (!Array.isArray(tiles)) throw new Error('Ongeldige indeling');
+  const used = {};
+  const out = [];
+  tiles.slice(0, GRID.cols * GRID.rows).forEach((t) => {
+    if (!t || ['device', 'clock', 'weather', 'nowplaying'].indexOf(t.type) === -1) return;
+    const w = t.w === 2 ? 2 : 1, h = t.h === 2 ? 2 : 1;
+    const x = Math.floor(Number(t.x)), y = Math.floor(Number(t.y));
+    if (!(x >= 0 && y >= 0 && x + w <= GRID.cols && y + h <= GRID.rows)) return;
+    if (t.type === 'device' && (typeof t.ref !== 'string' || !t.ref || t.ref.length > 200)) return;
+    for (let i = x; i < x + w; i++) for (let j = y; j < y + h; j++) if (used[i + ',' + j]) return;
+    for (let i = x; i < x + w; i++) for (let j = y; j < y + h; j++) used[i + ',' + j] = true;
+    const c = { type: t.type, x, y, w, h };
+    if (t.type === 'device') c.ref = t.ref;
+    if (t.type === 'clock') c.variant = t.variant === 'digital' ? 'digital' : 'analog';
+    out.push(c);
+  });
+  return out;
+}
+function cleanScreens(list) {
+  if (!Array.isArray(list)) throw new Error('Ongeldige schermen');
+  const seen = {};
+  return list.slice(0, 100).filter((x) => x && typeof x.key === 'string' && x.key.length <= 160 && !seen[x.key] && (seen[x.key] = true))
+    .map((x) => ({ key: x.key, on: !!x.on }));
+}
+
+/* Standaardindeling zolang er niets is ingedeeld. */
+function defaultHome(rooms) {
+  const all = [];
+  rooms.forEach((r) => r.tiles.forEach((t) => all.push(t)));
+  const thermo = all.filter((t) => t.kind === 'climate' && !t.readonly)[0];
+  const tiles = [];
+  if (thermo) {
+    tiles.push({ type: 'device', ref: thermo.id, x: 0, y: 0, w: 2, h: 2 });
+    tiles.push({ type: 'clock', variant: 'analog', x: 2, y: 0, w: 1, h: 1 });
+    tiles.push({ type: 'weather', x: 3, y: 0, w: 1, h: 1 });
+  } else {
+    tiles.push({ type: 'clock', variant: 'analog', x: 0, y: 0, w: 2, h: 2 });
+    tiles.push({ type: 'weather', x: 2, y: 0, w: 2, h: 1 });
+  }
+  tiles.push({ type: 'nowplaying', x: 2, y: 1, w: 2, h: 1 });
+  const picks = all.filter((t) => t !== thermo && !t.readonly && (t.name === 'Alle lampen' || t.kind === 'switch' || t.kind === 'scene'));
+  const seen = {};
+  picks.filter((t) => !seen[t.id] && (seen[t.id] = true)).slice(0, 4).forEach((t, i) => tiles.push({ type: 'device', ref: t.id, x: i, y: 2, w: 1, h: 1 }));
+  return tiles;
+}
+
+/* Schermen: opgeslagen volgorde, nieuwe kamers erachter (zones standaard uit). */
+function screensOut(rooms) {
+  const saved = Array.isArray(config.layout.screens) ? config.layout.screens : [];
+  const byKey = {};
+  rooms.forEach((r) => { byKey[r.key] = r; });
+  byKey.clock = { key: 'clock', name: 'Klok', zone: false, special: true };
+  const out = [];
+  const seen = {};
+  saved.forEach((x) => { if (byKey[x.key] && !seen[x.key]) { seen[x.key] = true; out.push({ key: x.key, name: byKey[x.key].name, zone: !!byKey[x.key].zone, on: x.on }); } });
+  rooms.forEach((r) => { if (!seen[r.key]) { seen[r.key] = true; out.push({ key: r.key, name: r.name, zone: !!r.zone, on: !r.zone }); } });
+  if (!seen.clock) out.push({ key: 'clock', name: 'Klok', zone: false, on: false });
+  return out;
+}
+
+function layoutOut(rooms) {
+  return {
+    theme: THEMES.indexOf(config.layout.theme) === -1 ? 'warm' : config.layout.theme,
+    grid: GRID,
+    home: Array.isArray(config.layout.home) ? config.layout.home : defaultHome(rooms),
+    custom: Array.isArray(config.layout.home),
+    screens: screensOut(rooms),
+  };
+}
+
+function saveLayout(b) {
+  if (b.home !== undefined) config.layout.home = b.home === null ? null : cleanHome(b.home);
+  if (b.screens !== undefined) config.layout.screens = cleanScreens(b.screens);
+  if (b.theme !== undefined) {
+    if (THEMES.indexOf(b.theme) === -1) throw new Error('Onbekend thema');
+    if (b.theme === 'eigen' && !bgVersion()) throw new Error('Upload eerst een eigen achtergrond');
+    config.layout.theme = b.theme;
+  }
+  saveConfig();
+}
+
+function saveBackground(b) {
+  if (b.remove) {
+    try { fs.unlinkSync(BG_FILE); } catch (e) { /* bestond niet */ }
+    if (config.layout.theme === 'eigen') { config.layout.theme = 'warm'; saveConfig(); }
+    return;
+  }
+  const m = /^data:image\/jpeg;base64,([A-Za-z0-9+\/=]+)$/.exec(String(b.image || ''));
+  if (!m) throw new Error('Alleen een JPEG-afbeelding');
+  const buf = Buffer.from(m[1], 'base64');
+  if (buf.length < 1000 || buf[0] !== 0xff || buf[1] !== 0xd8) throw new Error('Dit is geen geldige JPEG');
+  fs.mkdirSync(DATA, { recursive: true });
+  fs.writeFileSync(BG_FILE + '.tmp', buf);
+  fs.renameSync(BG_FILE + '.tmp', BG_FILE);
+  config.layout.theme = 'eigen';
+  saveConfig();
 }
 
 /* ---------------------------------------------------------------- update */
@@ -1002,6 +1199,14 @@ const demo = {
   ],
   sonos: { ok: true, room: 'Woonkamer', state: 'playing', source: 'music', title: 'Voorbeeldnummer', artist: 'Voorbeeldartiest', album: 'Demo-album', art: '', volume: 28, mute: false, canSkip: true },
   weather: { temp: 9, text: 'Half bewolkt', wind: 14, max: 11, min: 5, sunrise: '07:52', sunset: '16:47' },
+  favorites: [
+    { id: 'FV:2/1', title: 'Zondagochtend', desc: 'Apple Music-playlist', kind: 'favorite', art: '' },
+    { id: 'FV:2/2', title: 'NPO Radio 2', desc: 'Sonos Radio', kind: 'favorite', art: '' },
+    { id: 'FV:2/3', title: 'Focus', desc: 'Apple Music-playlist', kind: 'favorite', art: '' },
+    { id: 'FV:2/4', title: 'Jazz bij het eten', desc: 'Apple Music-album', kind: 'favorite', art: '' },
+    { id: 'FV:2/5', title: 'Kinderliedjes', desc: 'Apple Music-playlist', kind: 'favorite', art: '' },
+    { id: 'SQ:1', title: 'Feestje', desc: 'Sonos-playlist', kind: 'playlist', art: '' },
+  ],
 };
 function demoText(t) {
   if (t.readonly) return t.text;
@@ -1028,7 +1233,8 @@ function demoSet(id, char, value) {
 async function getState() {
   if (DEMO) {
     demo.rooms.forEach((r) => r.tiles.forEach((t) => { t.text = demoText(t); }));
-    return { ok: true, demo: true, time: Date.now(), homebridge: { ok: true }, rooms: demo.rooms, sonos: demo.sonos, weather: demo.weather };
+    demo.rooms.forEach((r) => { r.key = r.key || 'hb:' + r.name; r.tiles.forEach((t) => { t.room = r.name; }); });
+    return { ok: true, demo: true, time: Date.now(), version: 'demo', homebridge: { ok: true }, rooms: demo.rooms, sonos: demo.sonos, weather: demo.weather, layout: layoutOut(demo.rooms), bg: bgVersion(), favorites: demo.favorites };
   }
   weatherTick();
   const out = { ok: true, time: Date.now(), version: currentVersion(), homebridge: { ok: true }, rooms: [], sonos: null, weather: weather.data };
@@ -1046,29 +1252,38 @@ async function getState() {
   /* Werkt Hue rechtstreeks, dan komen de lampen uit de bridge en niet nog eens via Homebridge. */
   const hbRooms = hb2 ? buildRooms(hb2, { skipHue: !!hue2 }) : [];
   if (hue2) {
-    if (hbRooms.length === 1 && hbRooms[0].name === 'Thuis') hbRooms[0].name = 'Overig';
+    if (hbRooms.length === 1 && hbRooms[0].name === 'Thuis') { hbRooms[0].name = 'Overig'; hbRooms[0].key = 'hb:Overig'; }
     if (hue2.loose.length) {
       const o = hbRooms.filter((r) => r.name === 'Overig')[0];
-      if (o) o.tiles = o.tiles.concat(hue2.loose); else hbRooms.push({ name: 'Overig', tiles: hue2.loose });
+      if (o) o.tiles = o.tiles.concat(hue2.loose); else hbRooms.push({ name: 'Overig', key: 'hb:Overig', tiles: hue2.loose });
     }
     out.rooms = hue2.rooms.concat(hbRooms);
   } else {
     out.rooms = hbRooms;
   }
+  /* Bij elke tegel de kamer (voor de ondertitel op het beginscherm); kamers gaan voor zones. */
+  out.rooms.filter((r) => !r.zone).concat(out.rooms.filter((r) => r.zone)).forEach((r) => {
+    r.tiles.forEach((t) => { if (!t.room) t.room = r.name; });
+  });
+  out.layout = layoutOut(out.rooms);
+  out.bg = bgVersion();
+  if (config.sonos.enabled) {
+    try { out.favorites = await favLoad(); } catch (e) { out.favorites = null; }
+  }
   return out;
 }
 
-const STATIC = { '/setup': ['setup.html', 'text/html; charset=utf-8'], '/': ['index.html', 'text/html; charset=utf-8'], '/index.html': ['index.html', 'text/html; charset=utf-8'], '/app.js': ['app.js', 'application/javascript; charset=utf-8'], '/style.css': ['style.css', 'text/css; charset=utf-8'], '/icon.png': ['icon.png', 'image/png'] };
+const STATIC = { '/editor': ['editor.html', 'text/html; charset=utf-8'], '/editor.js': ['editor.js', 'application/javascript; charset=utf-8'], '/setup': ['setup.html', 'text/html; charset=utf-8'], '/': ['index.html', 'text/html; charset=utf-8'], '/index.html': ['index.html', 'text/html; charset=utf-8'], '/app.js': ['app.js', 'application/javascript; charset=utf-8'], '/style.css': ['style.css', 'text/css; charset=utf-8'], '/icon.png': ['icon.png', 'image/png'] };
 
 function send(res, status, type, body) {
   res.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Content-Length': Buffer.byteLength(body) });
   res.end(body);
 }
 function json(res, status, obj) { send(res, status, 'application/json; charset=utf-8', JSON.stringify(obj)); }
-function readBody(req) {
+function readBody(req, max) {
   return new Promise((resolve, reject) => {
     let data = '';
-    req.on('data', (c) => { data += c; if (data.length > 10000) { reject(new Error('te groot')); req.destroy(); } });
+    req.on('data', (c) => { data += c; if (data.length > (max || 20000)) { reject(new Error('te groot')); req.destroy(); } });
     req.on('end', () => { try { resolve(data ? JSON.parse(data) : {}); } catch (e) { reject(new Error('ongeldige JSON')); } });
     req.on('error', reject);
   });
@@ -1083,6 +1298,20 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, STATIC[u.pathname][1], fs.readFileSync(f));
     }
     if (req.method === 'GET' && u.pathname === '/api/state') return json(res, 200, await getState());
+    if (req.method === 'POST' && u.pathname === '/api/layout') {
+      try { saveLayout(await readBody(req, 60000)); } catch (e) { return json(res, 400, { ok: false, error: e.message }); }
+      return json(res, 200, { ok: true });
+    }
+    if (req.method === 'POST' && u.pathname === '/api/background') {
+      try { saveBackground(await readBody(req, 6 * 1024 * 1024)); } catch (e) { return json(res, 400, { ok: false, error: e.message }); }
+      return json(res, 200, { ok: true, bg: bgVersion() });
+    }
+    if (req.method === 'GET' && u.pathname === '/bg') {
+      if (!bgVersion()) return send(res, 404, 'text/plain', 'geen achtergrond');
+      const data = fs.readFileSync(BG_FILE);
+      res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'max-age=31536000', 'Content-Length': data.length });
+      return res.end(data);
+    }
     if (req.method === 'POST' && u.pathname === '/api/set') {
       const b = await readBody(req);
       if (typeof b.id !== 'string' || typeof b.char !== 'string' || ['boolean', 'number'].indexOf(typeof b.value) === -1) return json(res, 400, { ok: false, error: 'ongeldig verzoek' });
@@ -1109,6 +1338,7 @@ const server = http.createServer(async (req, res) => {
         if (b.action === 'pause') s.state = 'paused';
         if (b.action === 'volume') s.volume = Math.max(0, Math.min(100, Math.round(Number(b.value) || 0)));
         if (b.action === 'mute') s.mute = !!b.value;
+        if (b.action === 'favorite') { const f = demo.favorites.filter((x) => x.id === b.value)[0]; if (f) { s.title = f.title; s.artist = f.desc; s.state = 'playing'; } }
       } else {
         await sonosDo(String(b.action), b.value);
       }

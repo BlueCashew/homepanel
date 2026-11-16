@@ -1,187 +1,254 @@
-/* Huispaneel - geschreven voor Safari op iOS 9 (iPad mini 1, 1024x768 liggend).
-   Bewust geen CSS grid, geen custom properties, geen gap. */
+/* Huispaneel - voor Safari op iOS 9 (iPad mini 1, 1024x768 liggend).
+   Geen CSS grid, geen custom properties, geen gap, geen backdrop-filter. */
 
 html, body {
   margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
-  background: #10141c; color: #f4f0e6;
   font-family: -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
-  -webkit-user-select: none; user-select: none;
-  -webkit-touch-callout: none;
-  -webkit-tap-highlight-color: rgba(0,0,0,0);
-  -webkit-text-size-adjust: 100%;
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: rgba(0,0,0,0); -webkit-text-size-adjust: 100%;
 }
+#bgimg { display: none; position: absolute; left: 0; top: 0; right: 0; bottom: 0; background-size: cover; background-position: center; }
+#bgimg:after { content: ""; position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: rgba(0,0,0,.28); }
 
 #stage { position: absolute; left: 0; top: 0; right: 0; bottom: 0; overflow: hidden; }
-#track {
-  position: absolute; left: 0; top: 0; height: 100%; width: 300%;
-  -webkit-transform: translate3d(0,0,0); transform: translate3d(0,0,0);
-}
+#track { position: absolute; left: 0; top: 0; height: 100%; -webkit-transform: translate3d(0,0,0); transform: translate3d(0,0,0); }
 #track.anim { -webkit-transition: -webkit-transform .32s ease-out; transition: transform .32s ease-out; }
-.face { position: relative; float: left; width: 33.3333%; height: 100%; overflow: hidden; }
+.face { position: relative; float: left; height: 100%; overflow: hidden; }
 
-/* ---------------------------------------------------------------- thuis */
-.face-home {
-  background: #17233a;
-  background: -webkit-linear-gradient(315deg, #17233a 0%, #1c3a44 100%);
-  background: linear-gradient(135deg, #17233a 0%, #1c3a44 100%);
-}
-.home-left { position: absolute; left: 40px; top: 44px; bottom: 54px; width: 296px; }
-.home-right { position: absolute; left: 376px; right: 30px; top: 44px; bottom: 44px; }
-
-.clock { font-size: 104px; line-height: 104px; font-weight: 200; letter-spacing: -3px; margin-left: -5px; }
-.date { font-size: 22px; font-weight: 500; margin-top: 10px; color: #f3c56b; }
-.wx { margin-top: 34px; }
-.wx-temp { display: block; font-size: 54px; line-height: 58px; font-weight: 300; }
-.wx-text { display: block; font-size: 17px; line-height: 24px; color: rgba(244,240,230,.7); margin-top: 4px; }
-
-.np {
-  position: absolute; left: 0; right: 0; bottom: 0; height: 80px;
-  background: rgba(255,255,255,.09); border-radius: 20px;
-}
-.np-art {
-  position: absolute; left: 12px; top: 12px; width: 56px; height: 56px; border-radius: 10px;
-  background-color: rgba(255,255,255,.12); background-size: cover; background-position: center;
-}
-.np-meta { position: absolute; left: 80px; right: 68px; top: 18px; }
-.np-title, .np-artist { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.np-title { font-size: 16px; line-height: 22px; font-weight: 600; }
-.np-artist { font-size: 14px; line-height: 20px; color: rgba(244,240,230,.65); }
-.np-btn {
-  position: absolute; right: 12px; top: 16px; width: 48px; height: 48px; border-radius: 24px;
-  background: #f4f0e6; color: #17233a;
-}
-.np-btn svg { position: absolute; left: 12px; top: 12px; width: 24px; height: 24px; }
-.np.is-off .np-btn { display: none; }
-.np.is-off .np-meta { right: 12px; }
-
-.tabs { height: 44px; white-space: nowrap; overflow: hidden; margin-right: 56px; }
-.gear {
-  position: absolute; right: 0; top: -2px; width: 40px; height: 40px; border-radius: 20px;
-  background: rgba(255,255,255,.1); color: rgba(244,240,230,.8);
-}
-.gear svg { position: absolute; left: 9px; top: 9px; width: 22px; height: 22px; }
-.gear.is-down { opacity: .6; }
-.tab {
-  display: inline-block; height: 36px; line-height: 36px; padding: 0 18px; margin-right: 8px;
-  border-radius: 18px; font-size: 16px; font-weight: 600; color: rgba(244,240,230,.6);
-}
-.tab.is-active { background: rgba(255,255,255,.14); color: #f4f0e6; }
-
-.tiles {
-  position: absolute; left: 0; right: 0; top: 58px; bottom: 0;
-  overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch;
-}
+/* ------------------------------------------------------------- tegels */
 .tile {
-  position: relative; float: left; width: 23.5%; height: 128px; margin: 0 2% 12px 0;
+  position: absolute; overflow: hidden; border-radius: 26px;
   -webkit-box-sizing: border-box; box-sizing: border-box;
-  border-radius: 20px; background: rgba(255,255,255,.09); color: #f4f0e6;
-  -webkit-transition: background-color .15s, color .15s; transition: background-color .15s, color .15s;
+  -webkit-transition: background-color .18s, color .18s; transition: background-color .18s, color .18s;
 }
-.tile:nth-child(4n) { margin-right: 0; }
-.tile-icon { position: absolute; left: 14px; top: 14px; width: 30px; height: 30px; opacity: .75; }
-.tile-icon svg { width: 30px; height: 30px; }
-.tile-state { position: absolute; right: 14px; top: 18px; font-size: 14px; font-weight: 600; opacity: .7; }
-.tile-name {
-  position: absolute; left: 14px; right: 12px; bottom: 13px; font-size: 16px; line-height: 20px; font-weight: 600;
-  max-height: 40px; overflow: hidden;
-}
-.tile.is-on { background: #f6d98f; color: #2b2210; }
-.tile.is-on .tile-icon, .tile.is-on .tile-state { opacity: 1; }
-.tile.k-switch.is-on, .tile.k-outlet.is-on, .tile.k-tv.is-on, .tile.k-fan.is-on, .tile.k-climate.is-on { background: #a9e3cc; color: #10301f; }
-.tile.k-cover.is-on, .tile.k-lock.is-on { background: #b9d2f5; color: #13243f; }
-.tile.k-sensor { background: none; border: 2px solid rgba(255,255,255,.14); }
-.tile.k-sensor .tile-state { font-size: 22px; top: 12px; opacity: 1; }
-.tile.k-sensor.is-on { border-color: #f6d98f; color: #f6d98f; background: none; }
-.tile.k-scene.is-on { background: #e3c8f0; color: #2e1838; }
+.tile.is-down { opacity: .7; }
 .tile.is-fault { opacity: .5; }
-.tile.is-down { opacity: .6; }
+.t-icon { position: absolute; left: 20px; top: 18px; width: 38px; height: 38px; }
+.t-icon svg { width: 100%; height: 100%; }
+.t-state { position: absolute; right: 18px; top: 22px; font-size: 15px; font-weight: 600; }
+.t-name { position: absolute; left: 20px; right: 16px; bottom: 40px; font-size: 19px; line-height: 23px; font-weight: 600; max-height: 46px; overflow: hidden; }
+.t-sub { position: absolute; left: 20px; right: 16px; bottom: 17px; font-size: 14px; line-height: 19px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.s-2x2 .t-icon, .s-1x2 .t-icon { left: 26px; top: 26px; width: 64px; height: 64px; }
+.s-2x2 .t-name { left: 26px; bottom: 50px; font-size: 26px; line-height: 31px; max-height: 62px; }
+.s-2x2 .t-sub, .s-1x2 .t-sub { left: 26px; bottom: 24px; font-size: 17px; }
+.s-2x2 .t-state { right: 26px; top: 30px; font-size: 20px; }
+.s-1x2 .t-name { left: 26px; bottom: 50px; font-size: 22px; line-height: 27px; max-height: 81px; }
+.t-missing .t-name { opacity: .6; }
 
-.notice { position: absolute; left: 0; right: 0; top: 120px; text-align: center; font-size: 18px; line-height: 26px; color: rgba(244,240,230,.7); display: none; }
-.notice.is-shown { display: block; }
+/* grote thermostaat */
+.th-num { position: absolute; left: 0; right: 0; top: 18%; text-align: center; font-size: 150px; line-height: 150px; font-weight: 200; letter-spacing: -6px; }
+.th-num small { font-size: 54px; letter-spacing: 0; vertical-align: top; position: relative; top: 18px; margin-left: 4px; }
+.th-label { position: absolute; left: 70px; right: 70px; bottom: 44px; text-align: center; font-size: 21px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.th-sub { position: absolute; left: 70px; right: 70px; bottom: 20px; text-align: center; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.th-btn { position: absolute; bottom: 18px; width: 56px; height: 56px; border-radius: 28px; }
+.th-btn svg { position: absolute; left: 14px; top: 14px; width: 28px; height: 28px; }
+.th-minus { left: 18px; } .th-plus { right: 18px; }
+.th-btn.is-down { opacity: .5; }
+.th-small .th-num { top: 22px; font-size: 64px; line-height: 64px; letter-spacing: -2px; }
+.th-small .th-num small { font-size: 26px; top: 6px; }
+.th-small .th-label { left: 18px; right: 18px; bottom: 40px; font-size: 18px; text-align: left; }
+.th-small .th-sub { left: 18px; right: 18px; bottom: 17px; font-size: 14px; text-align: left; }
+.s-2x1.th-small .th-num { left: 24px; right: auto; top: 50%; margin-top: -40px; font-size: 82px; line-height: 82px; }
+.s-2x1.th-small .th-label, .s-2x1.th-small .th-sub { left: 52%; }
 
-/* --------------------------------------------------------------- muziek */
-.face-music {
-  background: #2b1a33;
-  background: -webkit-linear-gradient(315deg, #3b2040 0%, #1c1730 100%);
-  background: linear-gradient(135deg, #3b2040 0%, #1c1730 100%);
+/* klok */
+.clock-svg { position: absolute; left: 50%; top: 50%; }
+.clock-digital { position: absolute; left: 0; right: 0; top: 50%; margin-top: -48px; text-align: center; }
+.clock-digital .cd-time { font-size: 76px; line-height: 80px; font-weight: 200; letter-spacing: -2px; }
+.clock-digital .cd-date { font-size: 16px; font-weight: 600; margin-top: 4px; }
+.s-2x2 .clock-digital { margin-top: -90px; } .s-2x2 .clock-digital .cd-time { font-size: 150px; line-height: 150px; letter-spacing: -6px; } .s-2x2 .clock-digital .cd-date { font-size: 22px; }
+.s-2x1 .clock-digital .cd-time { font-size: 96px; line-height: 96px; }
+
+/* weer */
+.wx-icon { position: absolute; left: 20px; top: 18px; width: 46px; height: 46px; }
+.wx-icon svg { width: 100%; height: 100%; }
+.wx-temp { position: absolute; right: 20px; top: 14px; font-size: 54px; line-height: 58px; font-weight: 200; letter-spacing: -2px; }
+.wx-text { position: absolute; left: 20px; right: 16px; bottom: 40px; font-size: 18px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wx-sub { position: absolute; left: 20px; right: 16px; bottom: 17px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.s-2x2 .wx-icon, .s-1x2 .wx-icon { width: 84px; height: 84px; left: 26px; top: 26px; }
+.s-2x2 .wx-temp { font-size: 120px; line-height: 120px; top: 30%; left: 26px; right: auto; }
+.s-1x2 .wx-temp { font-size: 76px; line-height: 80px; top: 40%; left: 22px; right: auto; }
+
+/* nu speelt */
+.np-art { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background-size: cover; background-position: center; }
+.np-shade { position: absolute; left: 0; right: 0; bottom: 0; height: 75%; background: -webkit-linear-gradient(top, rgba(0,0,0,0), rgba(0,0,0,.62)); background: linear-gradient(to bottom, rgba(0,0,0,0), rgba(0,0,0,.62)); }
+.np-title, .np-artist { position: absolute; left: 22px; right: 92px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff; }
+.np-title { bottom: 44px; font-size: 20px; font-weight: 600; }
+.np-artist { bottom: 20px; font-size: 15px; color: rgba(255,255,255,.8); }
+.np-btn { position: absolute; right: 18px; bottom: 18px; width: 58px; height: 58px; border-radius: 29px; background: #fff; color: #222; }
+.np-btn svg { position: absolute; left: 16px; top: 16px; width: 26px; height: 26px; }
+.np-btn.is-down { opacity: .6; }
+.np-noart { position: absolute; left: 22px; top: 20px; width: 40px; height: 40px; opacity: .55; color: #fff; }
+.np-noart svg { width: 100%; height: 100%; }
+.s-2x2 .np-title { font-size: 26px; bottom: 54px; } .s-2x2 .np-artist { font-size: 18px; bottom: 26px; }
+
+/* ---------------------------------------------------------- kamerscherm */
+.room-title { position: absolute; left: 32px; top: 26px; font-size: 34px; line-height: 40px; font-weight: 300; letter-spacing: -.5px; }
+.room-count { position: absolute; left: 34px; top: 68px; font-size: 15px; font-weight: 600; opacity: .75; }
+.room-tiles { position: absolute; left: 28px; right: 28px; top: 104px; bottom: 56px; overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.room-tiles .tile { position: relative; float: left; width: 18.6%; height: 156px; margin: 0 1.75% 16px 0; }
+.room-tiles .tile:nth-child(5n) { margin-right: 0; }
+.room-tiles .t-name { font-size: 17px; line-height: 21px; max-height: 42px; bottom: 38px; }
+
+/* ------------------------------------------------------------- muziek */
+.mu-left { position: absolute; left: 40px; top: 40px; width: 380px; bottom: 60px; }
+.mu-art { position: relative; width: 380px; height: 380px; border-radius: 28px; background-size: cover; background-position: center; overflow: hidden; }
+.mu-art .np-noart { left: 50%; top: 50%; width: 120px; height: 120px; margin: -60px 0 0 -60px; }
+.mu-title { font-size: 28px; line-height: 33px; font-weight: 600; margin-top: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mu-artist { font-size: 18px; line-height: 24px; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mu-ctrl { position: relative; height: 80px; margin-top: 16px; }
+.mu-btn { position: absolute; top: 8px; width: 64px; height: 64px; border-radius: 32px; }
+.mu-btn svg { position: absolute; left: 18px; top: 18px; width: 28px; height: 28px; }
+.mu-prev { left: 60px; } .mu-next { right: 60px; }
+.mu-play { left: 50%; margin-left: -40px; top: 0; width: 80px; height: 80px; border-radius: 40px; }
+.mu-play svg { left: 24px; top: 24px; width: 32px; height: 32px; }
+.mu-btn.is-disabled { opacity: .3; }
+.mu-btn.is-down, .mu-mute.is-down { opacity: .6; }
+.mu-vol { position: relative; height: 56px; margin-top: 6px; }
+.mu-mute { position: absolute; left: 0; top: 6px; width: 44px; height: 44px; }
+.mu-mute svg { position: absolute; left: 7px; top: 7px; width: 30px; height: 30px; }
+.mu-vol .slider { position: absolute; left: 56px; right: 52px; top: 0; }
+.mu-volnum { position: absolute; right: 0; top: 0; line-height: 56px; font-size: 18px; font-weight: 600; width: 44px; text-align: right; }
+.mu-right { position: absolute; left: 460px; right: 32px; top: 36px; bottom: 56px; }
+.mu-head { font-size: 30px; line-height: 36px; font-weight: 300; }
+.mu-room { font-size: 14px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 2px; opacity: .8; }
+.mu-favs { position: absolute; left: 0; right: 0; top: 74px; bottom: 0; overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.fav { position: relative; float: left; width: 31.5%; margin: 0 2.75% 18px 0; }
+.fav:nth-child(3n) { margin-right: 0; }
+.fav-art { position: relative; width: 100%; height: 150px; border-radius: 20px; background-size: cover; background-position: center; overflow: hidden; }
+.fav-art .np-noart { left: 50%; top: 50%; width: 44px; height: 44px; margin: -22px 0 0 -22px; }
+.fav-title { font-size: 16px; line-height: 20px; font-weight: 600; margin-top: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fav-desc { font-size: 13px; line-height: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: .75; }
+.fav.is-down { opacity: .6; }
+.fav.is-playing .fav-art { box-shadow: 0 0 0 4px #fff; }
+.mu-empty { font-size: 17px; line-height: 25px; max-width: 460px; opacity: .85; }
+
+/* --------------------------------------------------------------- klok */
+.face-clock { text-align: center; }
+.fc-time { margin-top: 170px; font-size: 250px; line-height: 250px; font-weight: 100; letter-spacing: -8px; }
+.fc-date { font-size: 32px; margin-top: 18px; }
+.fc-wx { font-size: 22px; margin-top: 12px; opacity: .65; }
+
+/* ----------------------------------------------------- balk onderaan */
+#bar { position: absolute; left: 0; right: 0; bottom: 0; height: 52px; }
+#dots { position: absolute; left: 160px; right: 160px; bottom: 16px; height: 20px; text-align: center; }
+.dot { display: inline-block; width: 8px; height: 8px; margin: 6px 5px; border-radius: 4px; }
+.dot.is-music { width: 10px; }
+.barbtn { position: absolute; bottom: 10px; width: 38px; height: 38px; border-radius: 19px; }
+.barbtn svg { position: absolute; left: 9px; top: 9px; width: 20px; height: 20px; }
+#edit { right: 76px; } #gear { right: 28px; }
+.barbtn.is-down { opacity: .5; }
+
+#offline {
+  display: none; position: absolute; left: 50%; top: 22px; width: 360px; margin-left: -180px;
+  height: 38px; line-height: 38px; border-radius: 19px; text-align: center; font-size: 15px; font-weight: 600; background: #c8483b; color: #fff;
 }
-.m-art {
-  position: absolute; left: 64px; top: 164px; width: 440px; height: 440px; border-radius: 28px;
-  background-color: rgba(255,255,255,.08); background-size: cover; background-position: center;
-}
-.m-art svg { position: absolute; left: 150px; top: 150px; width: 140px; height: 140px; opacity: .3; }
-.m-side { position: absolute; left: 560px; right: 64px; top: 176px; height: 420px; }
-.m-room { font-size: 16px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #e6a9d0; }
-.m-title { font-size: 40px; line-height: 46px; font-weight: 600; margin-top: 14px; max-height: 92px; overflow: hidden; }
-.m-artist { font-size: 24px; line-height: 30px; color: rgba(244,240,230,.7); margin-top: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.m-ctrl { position: absolute; left: 0; bottom: 96px; height: 96px; width: 100%; }
-.m-btn { position: relative; float: left; width: 72px; height: 72px; margin: 12px 20px 0 0; border-radius: 36px; background: rgba(255,255,255,.1); }
-.m-btn svg { position: absolute; left: 20px; top: 20px; width: 32px; height: 32px; }
-.m-btn.m-play { width: 96px; height: 96px; margin-top: 0; border-radius: 48px; background: #f4f0e6; color: #2b1a33; }
-.m-btn.m-play svg { left: 28px; top: 28px; width: 40px; height: 40px; }
-.m-btn.is-disabled { opacity: .3; }
-.m-btn.is-down, .np-btn.is-down, .m-mute.is-down, .sheet-btn.is-down, .tab.is-down { opacity: .6; }
-.m-vol { position: absolute; left: 0; right: 0; bottom: 0; height: 56px; }
-.m-mute { position: absolute; left: 0; top: 6px; width: 44px; height: 44px; }
-.m-mute svg { position: absolute; left: 7px; top: 7px; width: 30px; height: 30px; }
-.m-mute.is-muted { color: #e6a9d0; }
-.m-volnum { position: absolute; right: 0; top: 0; width: 44px; line-height: 56px; text-align: right; font-size: 20px; font-weight: 600; }
-.m-vol .slider { position: absolute; left: 60px; right: 60px; top: 0; }
+#offline.is-shown { display: block; }
 
-/* ----------------------------------------------------------------- klok */
-.face-clock { background: #0b0d12; text-align: center; }
-.c-time { margin-top: 190px; font-size: 250px; line-height: 250px; font-weight: 100; letter-spacing: -8px; color: #e9e3d4; }
-.c-date { font-size: 32px; font-weight: 400; margin-top: 18px; color: #f3c56b; }
-.c-wx { font-size: 22px; margin-top: 14px; color: rgba(233,227,212,.55); }
-
-/* --------------------------------------------------------------- slider */
+/* ------------------------------------------------------------- slider */
 .slider { position: relative; height: 56px; }
-.slider:before { content: ""; position: absolute; left: 0; right: 0; top: 23px; height: 10px; border-radius: 5px; background: rgba(255,255,255,.16); }
-.slider-fill { position: absolute; left: 0; top: 23px; height: 10px; width: 0; border-radius: 5px; background: #f4f0e6; }
+.slider:before { content: ""; position: absolute; left: 0; right: 0; top: 23px; height: 10px; border-radius: 5px; background: rgba(255,255,255,.25); }
+.slider-fill { position: absolute; left: 0; top: 23px; height: 10px; width: 0; border-radius: 5px; background: #fff; }
 .slider-knob { position: absolute; top: 12px; left: 0; width: 32px; height: 32px; margin-left: -16px; border-radius: 16px; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.35); }
 .slider-big { height: 72px; margin: 18px 16px 0 16px; }
 .slider-big:before, .slider-big .slider-fill { top: 22px; height: 28px; border-radius: 14px; }
 .slider-big .slider-fill { background: #f6d98f; }
 .slider-big .slider-knob { top: 14px; width: 44px; height: 44px; margin-left: -22px; border-radius: 22px; }
 
-/* ---------------------------------------------------------------- overig */
-#dots { position: absolute; left: 0; right: 0; bottom: 12px; height: 20px; text-align: center; }
-.dot { display: inline-block; width: 8px; height: 8px; margin: 6px 6px; border-radius: 4px; background: rgba(255,255,255,.28); }
-.dot.is-active { background: #f4f0e6; }
-
-#offline {
-  display: none; position: absolute; left: 50%; top: 26px; width: 320px; margin-left: -160px;
-  height: 36px; line-height: 36px; border-radius: 18px; text-align: center; font-size: 15px; font-weight: 600;
-  background: #c8483b; color: #fff;
-}
-#offline.is-shown { display: block; }
-
-#sheet { display: none; position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: rgba(8,10,16,.72); }
+/* -------------------------------------------------------------- sheet */
+#sheet { display: none; position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: rgba(8,10,16,.6); }
 #sheet.is-shown { display: block; }
 .sheet-box {
-  position: absolute; left: 50%; top: 50%; width: 520px; margin-left: -260px; margin-top: -150px;
-  -webkit-box-sizing: border-box; box-sizing: border-box; padding: 28px 28px 24px 28px; border-radius: 28px; background: #223048;
+  position: absolute; left: 50%; top: 50%; width: 520px; margin-left: -260px; margin-top: -150px; color: #f4f0e6;
+  -webkit-box-sizing: border-box; box-sizing: border-box; padding: 28px 28px 24px 28px; border-radius: 30px; background: #26324a;
+  box-shadow: 0 20px 60px rgba(0,0,0,.4);
 }
 .sheet-title { font-size: 26px; font-weight: 600; }
 .sheet-value { font-size: 18px; margin-top: 6px; color: rgba(244,240,230,.7); min-height: 24px; }
 .sheet-row { margin-top: 22px; overflow: hidden; }
 .sheet-btn { float: left; width: 48%; height: 54px; line-height: 54px; text-align: center; border-radius: 16px; font-size: 18px; font-weight: 600; background: rgba(255,255,255,.12); }
 .sheet-btn.sheet-primary { float: right; background: #f6d98f; color: #2b2210; }
+.sheet-btn.is-down { opacity: .6; }
 #sheet.no-slider .slider { display: none; }
 .stepper { display: none; position: relative; height: 96px; margin-top: 14px; text-align: center; }
 #sheet.mode-step .stepper { display: block; }
 #sheet.mode-step .slider { display: none; }
-.sheet-sub, .slider-ct { display: none; }
-#sheet.has-ct .sheet-sub { display: block; font-size: 15px; color: rgba(244,240,230,.7); margin: 10px 0 0 0; }
-#sheet.has-ct .slider-ct { display: block; }
-#sheet.has-ct .sheet-box { margin-top: -200px; }
-.slider-ct:before {
-  background: #ffb35c;
-  background: -webkit-linear-gradient(left, #ffb35c 0%, #fff1dc 55%, #cfe2ff 100%);
-  background: linear-gradient(90deg, #ffb35c 0%, #fff1dc 55%, #cfe2ff 100%);
-}
-.slider-ct .slider-fill { display: none; }
 .step-btn { position: absolute; left: 8px; top: 8px; width: 80px; height: 80px; line-height: 76px; border-radius: 40px; font-size: 48px; font-weight: 300; background: rgba(255,255,255,.12); }
 .step-btn.step-plus { left: auto; right: 8px; }
 .step-btn.is-down { opacity: .6; }
 .step-val { font-size: 72px; line-height: 96px; font-weight: 200; }
+.sheet-sub, .slider-ct { display: none; }
+#sheet.has-ct .sheet-sub { display: block; font-size: 15px; color: rgba(244,240,230,.7); margin: 10px 0 0 0; }
+#sheet.has-ct .slider-ct { display: block; }
+#sheet.has-ct .sheet-box { margin-top: -200px; }
+.slider-ct:before { background: #ffb35c; background: -webkit-linear-gradient(left, #ffb35c 0%, #fff1dc 55%, #cfe2ff 100%); background: linear-gradient(90deg, #ffb35c 0%, #fff1dc 55%, #cfe2ff 100%); }
+.slider-ct .slider-fill { display: none; }
+
+/* ============================================================= thema's */
+
+/* Warm: oranje verloop met zachte lichtvlekken, matglazen tegels. */
+body.theme-warm { background: #e8792c; color: #fff;
+  background-image: radial-gradient(circle at 82% 12%, rgba(255,215,140,.6) 0, rgba(255,215,140,0) 38%), radial-gradient(circle at 8% 95%, rgba(160,40,15,.5) 0, rgba(160,40,15,0) 46%), linear-gradient(135deg, #f6a944 0%, #e7772b 52%, #c4461e 100%); }
+.theme-warm .tile, .theme-warm .barbtn, .theme-warm .mu-btn, .theme-warm .th-btn { background-color: rgba(255,255,255,.17); box-shadow: inset 0 0 0 1px rgba(255,255,255,.26); color: #fff; }
+.theme-warm .t-sub, .theme-warm .th-sub, .theme-warm .wx-sub { color: rgba(255,255,255,.78); }
+.theme-warm .tile.is-on { background-color: rgba(255,248,238,.95); color: #3b2a1c; box-shadow: none; }
+.theme-warm .tile.is-on .t-icon { color: #e0772c; }
+.theme-warm .tile.is-on .t-sub { color: #8f6c52; }
+.theme-warm .tile.k-sensor { background-color: rgba(255,255,255,.08); }
+.theme-warm .tile.big-thermo { background-color: rgba(255,248,238,.95); color: #2c2119; box-shadow: none; }
+.theme-warm .big-thermo .th-sub { color: #8f6c52; }
+.theme-warm .big-thermo .th-btn { background: rgba(60,40,20,.08); color: #2c2119; box-shadow: none; }
+.theme-warm .mu-play { background: #fff; color: #c4461e; }
+.theme-warm .dot { background: rgba(255,255,255,.4); } .theme-warm .dot.is-active { background: #fff; }
+.theme-warm .fav-art, .theme-warm .mu-art { background-color: rgba(255,255,255,.17); }
+
+/* Oceaan: diepblauw met turquoise. */
+body.theme-oceaan { background: #145173; color: #fff;
+  background-image: radial-gradient(circle at 85% 10%, rgba(120,220,230,.45) 0, rgba(120,220,230,0) 40%), linear-gradient(135deg, #1e7f98 0%, #135174 50%, #0e2c50 100%); }
+.theme-oceaan .tile, .theme-oceaan .barbtn, .theme-oceaan .mu-btn, .theme-oceaan .th-btn { background-color: rgba(255,255,255,.14); box-shadow: inset 0 0 0 1px rgba(255,255,255,.2); color: #fff; }
+.theme-oceaan .t-sub, .theme-oceaan .th-sub, .theme-oceaan .wx-sub { color: rgba(255,255,255,.75); }
+.theme-oceaan .tile.is-on, .theme-oceaan .tile.big-thermo { background-color: rgba(240,250,252,.95); color: #10324a; box-shadow: none; }
+.theme-oceaan .tile.is-on .t-icon { color: #1f8db8; }
+.theme-oceaan .tile.is-on .t-sub, .theme-oceaan .big-thermo .th-sub { color: #4d7287; }
+.theme-oceaan .big-thermo .th-btn { background: rgba(16,50,74,.08); color: #10324a; box-shadow: none; }
+.theme-oceaan .mu-play { background: #fff; color: #135174; }
+.theme-oceaan .dot { background: rgba(255,255,255,.35); } .theme-oceaan .dot.is-active { background: #fff; }
+.theme-oceaan .fav-art, .theme-oceaan .mu-art { background-color: rgba(255,255,255,.14); }
+
+/* Donker: de oorspronkelijke stijl. */
+body.theme-donker { background: #17233a; color: #f4f0e6; background-image: linear-gradient(135deg, #17233a 0%, #1c3a44 100%); }
+.theme-donker .tile, .theme-donker .barbtn, .theme-donker .mu-btn, .theme-donker .th-btn { background-color: rgba(255,255,255,.09); color: #f4f0e6; }
+.theme-donker .t-sub, .theme-donker .th-sub, .theme-donker .wx-sub { color: rgba(244,240,230,.65); }
+.theme-donker .tile.is-on { background-color: #f6d98f; color: #2b2210; }
+.theme-donker .tile.is-on .t-sub { color: #6b5a33; }
+.theme-donker .tile.k-switch.is-on, .theme-donker .tile.k-outlet.is-on, .theme-donker .tile.k-tv.is-on, .theme-donker .tile.k-fan.is-on { background-color: #a9e3cc; color: #10301f; }
+.theme-donker .tile.k-scene.is-on { background-color: #e3c8f0; color: #2e1838; }
+.theme-donker .tile.big-thermo { background-color: rgba(255,255,255,.12); }
+.theme-donker .mu-play { background: #f4f0e6; color: #17233a; }
+.theme-donker .dot { background: rgba(255,255,255,.28); } .theme-donker .dot.is-active { background: #f4f0e6; }
+.theme-donker .fav-art, .theme-donker .mu-art { background-color: rgba(255,255,255,.09); }
+
+/* Nacht: bijna zwart en gedimd, prettig in een donkere kamer. */
+body.theme-nacht { background: #06070a; color: #b7a58b; }
+.theme-nacht .tile, .theme-nacht .barbtn, .theme-nacht .mu-btn, .theme-nacht .th-btn { background-color: rgba(255,255,255,.05); color: #b7a58b; }
+.theme-nacht .t-sub, .theme-nacht .th-sub, .theme-nacht .wx-sub { color: rgba(183,165,139,.6); }
+.theme-nacht .tile.is-on { background-color: rgba(214,150,70,.72); color: #160f06; }
+.theme-nacht .tile.is-on .t-sub { color: rgba(22,15,6,.65); }
+.theme-nacht .tile.big-thermo { background-color: rgba(255,255,255,.07); }
+.theme-nacht .mu-play { background: #b7a58b; color: #06070a; }
+.theme-nacht .dot { background: rgba(183,165,139,.25); } .theme-nacht .dot.is-active { background: #b7a58b; }
+.theme-nacht .slider-knob, .theme-nacht .slider-fill { background: #b7a58b; }
+.theme-nacht .np-btn { background: #b7a58b; }
+.theme-nacht .fav-art, .theme-nacht .mu-art { background-color: rgba(255,255,255,.05); }
+
+/* Eigen foto als achtergrond. */
+body.theme-eigen { background: #222; color: #fff; }
+.theme-eigen #bgimg { display: block; }
+.theme-eigen .tile, .theme-eigen .barbtn, .theme-eigen .mu-btn, .theme-eigen .th-btn { background-color: rgba(18,18,22,.42); box-shadow: inset 0 0 0 1px rgba(255,255,255,.18); color: #fff; }
+.theme-eigen .t-sub, .theme-eigen .th-sub, .theme-eigen .wx-sub { color: rgba(255,255,255,.75); }
+.theme-eigen .tile.is-on, .theme-eigen .tile.big-thermo { background-color: rgba(255,255,255,.93); color: #1d1d22; box-shadow: none; }
+.theme-eigen .tile.is-on .t-sub, .theme-eigen .big-thermo .th-sub { color: #66666f; }
+.theme-eigen .big-thermo .th-btn { background: rgba(0,0,0,.07); color: #1d1d22; box-shadow: none; }
+.theme-eigen .mu-play { background: #fff; color: #1d1d22; }
+.theme-eigen .dot { background: rgba(255,255,255,.4); } .theme-eigen .dot.is-active { background: #fff; }
+.theme-eigen .fav-art, .theme-eigen .mu-art { background-color: rgba(18,18,22,.42); }
