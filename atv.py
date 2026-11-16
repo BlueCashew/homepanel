@@ -14,7 +14,7 @@ import json
 import sys
 
 import pyatv
-from pyatv.const import DeviceState, PowerState, Protocol
+from pyatv.const import DeviceState, OperatingSystem, PowerState, Protocol
 from pyatv.interface import DeviceListener, PowerListener, PushListener
 from pyatv.storage.file_storage import FileStorage
 
@@ -103,8 +103,8 @@ class Bridge(PushListener, PowerListener, DeviceListener):
     async def cmd_scan(self, msg):
         out = []
         for conf in await self.find(timeout=int(msg.get("timeout", 5))):
-            if not conf.get_service(Protocol.Companion):
-                continue  # geen Apple TV (bijvoorbeeld een HomePod of AirPlay-speaker)
+            if not conf.get_service(Protocol.Companion) or conf.device_info.operating_system != OperatingSystem.TvOS:
+                continue  # geen Apple TV (bijvoorbeeld een HomePod, Mac of AirPlay-speaker)
             paired = {}
             for name, proto in PROTOCOLS.items():
                 svc = conf.get_service(proto)
