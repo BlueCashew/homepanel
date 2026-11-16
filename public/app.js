@@ -294,6 +294,7 @@
       k = t.type === 'HueGroup' ? 'group' : t.kind;
       if (k !== iconKind) { iconKind = k; e.children[0].innerHTML = iconFor(t); }
       setText(e.children[1], t.name === 'Alle lampen' && !inRoom && t.room ? t.room : t.name);
+      if (t.kind === 'scene' && !inRoom) { setText(e.children[2], (t.room || 'Scène') + (s.on ? ' · actief' : '')); return; }
       setText(e.children[2], t.name === 'Alle lampen' && !inRoom ? 'Alle lampen · ' + (t.fault ? 'Geen contact' : s.text) : subText(t, s, inRoom));
     } });
     return e;
