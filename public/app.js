@@ -60,6 +60,7 @@
     note: svg('<path d="M9 18a3 3 0 1 1-2-2.83V5.5a1 1 0 0 1 .76-.97l10-2.5A1 1 0 0 1 19 3v11.99a3 3 0 1 1-2-2.82V7.28l-8 2V18z"/>')
   };
   ICON.fan = ICON['switch'];
+  ICON.gear = svg('<path fill-rule="evenodd" d="M10.3 2h3.4l.5 2.6c.6.2 1.2.5 1.7.9l2.5-.9 1.7 2.9-2 1.7c.1.6.1 1.2 0 1.8l2 1.7-1.7 2.9-2.5-.9c-.5.4-1.1.7-1.7.9l-.5 2.6h-3.4l-.5-2.6c-.6-.2-1.2-.5-1.7-.9l-2.5.9-1.7-2.9 2-1.7a6 6 0 0 1 0-1.8l-2-1.7 1.7-2.9 2.5.9c.5-.4 1.1-.7 1.7-.9L10.3 2zM12 8.5a3 3 0 1 0 0 6 3 3 0 0 0 0-6z" transform="translate(0 .5)"/>');
   ICON.scene = svg('<path d="M12 2l2.2 5.8L20 10l-5.8 2.2L12 18l-2.2-5.8L4 10l5.8-2.2z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/>');
 
   /* -------------------------------------------------------------- xhr */
@@ -606,6 +607,8 @@
     initSwipe();
     initSheet();
     initSonos();
+    $('gear').innerHTML = ICON.gear;
+    onTap($('gear'), function () { window.location.href = 'setup'; });
     goFace(f, false);
     tick();
     setInterval(tick, 1000);

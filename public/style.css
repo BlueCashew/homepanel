@@ -54,7 +54,13 @@ html, body {
 .np.is-off .np-btn { display: none; }
 .np.is-off .np-meta { right: 12px; }
 
-.tabs { height: 44px; white-space: nowrap; overflow: hidden; }
+.tabs { height: 44px; white-space: nowrap; overflow: hidden; margin-right: 56px; }
+.gear {
+  position: absolute; right: 0; top: -2px; width: 40px; height: 40px; border-radius: 20px;
+  background: rgba(255,255,255,.1); color: rgba(244,240,230,.8);
+}
+.gear svg { position: absolute; left: 9px; top: 9px; width: 22px; height: 22px; }
+.gear.is-down { opacity: .6; }
 .tab {
   display: inline-block; height: 36px; line-height: 36px; padding: 0 18px; margin-right: 8px;
   border-radius: 18px; font-size: 16px; font-weight: 600; color: rgba(244,240,230,.6);
