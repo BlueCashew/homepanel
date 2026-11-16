@@ -239,7 +239,9 @@
   /* ------------------------------------------------------------- tegels */
   function shown(t) {
     /* Na een tik tonen we meteen de nieuwe stand, tot de server hem bevestigt. */
-    var p = pending[t.id], o = { on: t.on, level: t.level, text: t.text };
+    var p = pending[t.id], o = { on: t.on, level: t.level, text: t.text }, h = t.kind === 'scene' && t.group && sceneHold[t.group];
+    /* Net een scène gekozen in deze kamer: die keuze tonen tot de bridge bij is. */
+    if (h && Date.now() < h.until) { o.on = t.id === h.id; o.text = o.on ? 'Actief' : ''; return o; }
     if (!p) { return o; }
     if (Date.now() > p.until || ((p.on === undefined || p.on === t.on) && (p.level === undefined || p.level === t.level))) { delete pending[t.id]; return o; }
     if (p.on !== undefined) { o.on = p.on; }
@@ -262,15 +264,19 @@
   }
   /* Een scène aanzetten zet de andere scènes van dezelfde kamer of zone uit:
      dat tonen we meteen, in plaats van te wachten op de volgende ronde. */
+  var sceneHold = {};
   function sceneOn(t) {
-    var id, o;
-    for (id in tileById) {
-      o = tileById[id];
-      if (o && o !== t && o.kind === 'scene' && t.group && o.group === t.group && shown(o).on) {
-        pending[o.id] = { on: false, until: Date.now() + 6000 };
-      }
-    }
-    send(t, t['char'], true, { on: true });
+    if (!t.group) { send(t, t['char'], true, { on: true }); return; }
+    var hold = { id: t.id, until: Date.now() + 8000 };
+    sceneHold[t.group] = hold;
+    paintAll();
+    api('POST', 'api/set', { id: t.id, 'char': t['char'], value: true }, function (err) {
+      if (sceneHold[t.group] !== hold) { return; }
+      if (err) { delete sceneHold[t.group]; paintAll(); toast(err); return; }
+      /* Nog even vasthouden na het antwoord: de bridge meldt de nieuwe scène soms pas later. */
+      hold.until = Math.max(hold.until, Date.now() + 3000);
+      refreshSoon();
+    });
   }
   function refreshSoon() {
     setTimeout(function () {

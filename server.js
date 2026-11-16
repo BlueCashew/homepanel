@@ -675,12 +675,14 @@ async function hueLoad() {
   if (hue.cache && Date.now() - hue.cacheAt < 2000) return hue.cache;
   if (hue.inflight) return hue.inflight;
   hue.inflight = (async () => {
+    const gen = hue.gen || 0;
     try {
       const j = await hueCall('GET', '/clip/v2/resource');
       const by = {};
       (j.data || []).forEach((x) => { by[x.id] = x; });
       hue.cache = { list: j.data || [], by };
-      hue.cacheAt = Date.now();
+      /* Is er tijdens het ophalen iets geschakeld, dan is dit antwoord al verouderd: niet bewaren als vers. */
+      hue.cacheAt = (hue.gen || 0) === gen ? Date.now() : 0;
       hue.error = null;
       return hue.cache;
     } catch (e) {
@@ -827,7 +829,16 @@ async function hueSet(id, ch, value) {
     body = { color_temperature: { mirek: Math.round(hi - Math.max(0, Math.min(100, value)) / 100 * (hi - lo)) } };
   }
   if (!body) throw new Error('Deze bediening kan niet bij dit Hue-onderdeel');
-  await hueCall('PUT', '/clip/v2/resource/' + want + '/' + rid, body);
+  /* Scènes na elkaar naar de bridge sturen, zodat de laatst getikte scène ook echt als laatste aankomt. */
+  const run = () => hueCall('PUT', '/clip/v2/resource/' + want + '/' + rid, body);
+  if (kind === 'scene') {
+    const p = (hue.sceneQueue || Promise.resolve()).then(run, run);
+    hue.sceneQueue = p.catch(() => {});
+    await p;
+  } else {
+    await run();
+  }
+  hue.gen = (hue.gen || 0) + 1;
   hue.cacheAt = 0;
 }
 
