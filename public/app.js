@@ -256,8 +256,29 @@
     pending[t.id] = { on: opt.on, level: opt.level, until: Date.now() + (opt.wait || 6000) };
     paintAll();
     api('POST', 'api/set', { id: t.id, 'char': ch, value: value }, function (err) {
-      if (err) { delete pending[t.id]; paintAll(); toast(err); }
+      if (err) { delete pending[t.id]; paintAll(); toast(err); return; }
+      refreshSoon();
     });
+  }
+  /* Een scène aanzetten zet de andere scènes van dezelfde kamer of zone uit:
+     dat tonen we meteen, in plaats van te wachten op de volgende ronde. */
+  function sceneOn(t) {
+    var id, o;
+    for (id in tileById) {
+      o = tileById[id];
+      if (o && o !== t && o.kind === 'scene' && t.group && o.group === t.group && shown(o).on) {
+        pending[o.id] = { on: false, until: Date.now() + 6000 };
+      }
+    }
+    send(t, t['char'], true, { on: true });
+  }
+  function refreshSoon() {
+    setTimeout(function () {
+      api('GET', 'api/state?t=' + Date.now(), null, function (err, data) {
+        if (err || !data || (state && data.version !== state.version)) { return; }
+        state = data; render();
+      });
+    }, 700);
   }
   function toggle(t) {
     var cur = shown(t);
@@ -268,7 +289,7 @@
     if (!t || t.readonly) { return; }
     if (t.stepper) { openStep(t); return; }
     if (!t['char']) { return; }
-    if (t.kind === 'scene') { send(t, t['char'], true, { on: true }); return; }
+    if (t.kind === 'scene') { sceneOn(t); return; }
     if (t.confirm) { openConfirm(t); } else { toggle(t); }
   }
   function holdDevice(id) {

@@ -798,7 +798,7 @@ function hueRooms(data) {
         .sort((a, b) => String(a.metadata && a.metadata.name).localeCompare(String(b.metadata && b.metadata.name)))
         .forEach((sc) => {
           const on = !!(sc.status && sc.status.active && sc.status.active !== 'inactive');
-          tiles.push({ id: 'hue:scene:' + sc.id, name: (sc.metadata && sc.metadata.name) || 'Scène', type: 'HueScene', kind: 'scene', on, char: 'recall', onValue: true, offValue: true, text: on ? 'Actief' : '' });
+          tiles.push({ id: 'hue:scene:' + sc.id, name: (sc.metadata && sc.metadata.name) || 'Scène', type: 'HueScene', kind: 'scene', group: g.id, on, char: 'recall', onValue: true, offValue: true, text: on ? 'Actief' : '' });
         });
       rooms.push({ name: (g.metadata && g.metadata.name) || (type === 'room' ? 'Kamer' : 'Zone'), key: 'hue:' + type + ':' + g.id, zone: type === 'zone', tiles: tiles.filter((t) => hide.indexOf(String(t.name).toLowerCase()) === -1) });
     });
@@ -1191,9 +1191,9 @@ const demo = {
   rooms: [
     { name: 'Woonkamer', tiles: [
       { id: 'd1', name: 'Staande lamp', type: 'Lightbulb', kind: 'light', on: true, level: 60, levelChar: 'Brightness', char: 'On', onValue: true, offValue: false, ctChar: 'ct', ct: 30 },
-      { id: 'd11', name: 'Avond', type: 'HueScene', kind: 'scene', on: false, char: 'recall', onValue: true, offValue: true },
-      { id: 'd12', name: 'Film kijken', type: 'HueScene', kind: 'scene', on: false, char: 'recall', onValue: true, offValue: true },
-      { id: 'd13', name: 'Helder', type: 'HueScene', kind: 'scene', on: false, char: 'recall', onValue: true, offValue: true },
+      { id: 'd11', group: 'demo-wk', name: 'Avond', type: 'HueScene', kind: 'scene', on: false, char: 'recall', onValue: true, offValue: true },
+      { id: 'd12', group: 'demo-wk', name: 'Film kijken', type: 'HueScene', kind: 'scene', on: false, char: 'recall', onValue: true, offValue: true },
+      { id: 'd13', group: 'demo-wk', name: 'Helder', type: 'HueScene', kind: 'scene', on: false, char: 'recall', onValue: true, offValue: true },
       { id: 'd2', name: 'Eettafel', type: 'Lightbulb', kind: 'light', on: true, level: 85, levelChar: 'Brightness', char: 'On', onValue: true, offValue: false },
       { id: 'd3', name: 'Leeslamp', type: 'Lightbulb', kind: 'light', on: false, level: 40, levelChar: 'Brightness', char: 'On', onValue: true, offValue: false },
       { id: 'd4', name: 'Art Frame', type: 'Switch', kind: 'switch', on: true, char: 'On', onValue: true, offValue: false },
