@@ -85,6 +85,13 @@ Een andere repo of branch gebruiken kan in `config.json`:
 
 Verandert `huispaneel.service` in een update, dan moet je die zelf opnieuw installeren (`sudo cp huispaneel.service /etc/systemd/system/ && sudo systemctl daemon-reload`). De rest gaat vanzelf.
 
+### Testen
+
+```
+node test/mock-test.js     # server tegen nagebootste Homebridge, Hue Bridge en Sonos
+node test/update-test.js   # bijwerken, weigeren van een kapotte versie en terugdraaien
+```
+
 ## De iPad instellen
 
 1. Open in Safari `http://<ip-adres-van-de-pi>:8600`. Gebruik het IP-adres en `http://`, geen `https://`.
