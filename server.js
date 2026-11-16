@@ -1232,7 +1232,11 @@ function demoSet(id, char, value) {
   demo.rooms.forEach((r) => r.tiles.forEach((t) => {
     if (t.id !== id) return;
     if (char === 'ct') { t.ct = Number(value); }
-    else if (t.kind === 'scene') { t.on = true; }
+    else if (t.kind === 'scene') {
+      // Zoals de Hue Bridge: één actieve scène per kamer of zone.
+      demo.rooms.forEach((r2) => r2.tiles.forEach((o) => { if (o.kind === 'scene' && o.group === t.group) o.on = false; }));
+      t.on = true;
+    }
     else if (t.kind === 'climate') { t.level = Number(value); t.on = t.level > t.cur; }
     else if (char === t.levelChar && char !== t.char) { t.level = Number(value); t.on = t.level > 0; }
     else if (t.kind === 'cover') { t.level = Number(value); t.on = t.level > 0; }
