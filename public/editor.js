@@ -38,6 +38,7 @@
     nowplaying: svg('<path d="M9 18a3 3 0 1 1-2-2.83V5.5a1 1 0 0 1 .76-.97l10-2.5A1 1 0 0 1 19 3v11.99a3 3 0 1 1-2-2.82V7.28l-8 2V18z"/>')
   };
   ICON.outlet = ICON.tv = ICON.fan = ICON.cover = ICON.lock = ICON['switch'];
+  ICON.tvset = svg('<rect x="2" y="4" width="20" height="13" rx="2.5"/><rect x="7" y="19" width="10" height="2" rx="1"/>');
 
   function tap(e, fn) {
     e.addEventListener('touchstart', function () { e.className += ' is-down'; }, false);
@@ -101,6 +102,7 @@
     if (t.type === 'clock') { return { name: 'Klok', kind: t.variant === 'digital' ? 'Digitaal' : 'Analoog', icon: ICON.clock }; }
     if (t.type === 'weather') { return { name: 'Weer', kind: 'Widget', icon: ICON.weather }; }
     if (t.type === 'nowplaying') { return { name: 'Nu speelt', kind: 'Sonos', icon: ICON.nowplaying }; }
+    if (t.type === 'atv') { return { name: (state.atv && state.atv.name) || 'Apple TV', kind: 'Apple TV', icon: ICON.tvset }; }
     d = tileById[t.ref];
     if (!d) { return { name: 'Niet gevonden', kind: 'Verwijder of vervang', icon: ICON.sensor, missing: true }; }
     return { name: d.name === 'Alle lampen' ? d.room : d.name, kind: d.name === 'Alle lampen' ? 'Alle lampen' : (d.room || ''), icon: d.type === 'HueGroup' ? ICON.group : (ICON[d.kind] || ICON['switch']), on: d.on, scene: d.kind === 'scene' };
@@ -214,7 +216,7 @@
     if (item.scene) { h = 0.5; }
     else if (target.half) { toast('Hier past alleen een scène (halve hoogte).'); return; }
     delete item.scene;
-    if (item.type === 'nowplaying' || item.type === 'weather') { if (fits(x, y, 2, 1, -1)) { w = 2; } }
+    if (item.type === 'nowplaying' || item.type === 'weather' || item.type === 'atv') { if (fits(x, y, 2, 1, -1)) { w = 2; } }
     if (item.big) { if (fits(x, y, 2, 2, -1)) { w = 2; h = 2; } else if (fits(x, y, 1, 2, -1)) { h = 2; } }
     item.x = x; item.y = y; item.w = w; item.h = h;
     delete item.big;
@@ -235,6 +237,7 @@
     item(list, ICON.clock, 'Klok', 'digitaal', false, function () { place({ type: 'clock', variant: 'digital' }); });
     item(list, ICON.weather, 'Weer', '', false, function () { place({ type: 'weather' }); });
     item(list, ICON.nowplaying, 'Nu speelt', 'Sonos', false, function () { place({ type: 'nowplaying' }); });
+    if (state.atv) { item(list, ICON.tvset, 'Apple TV', state.atv.name, false, function () { place({ type: 'atv' }); }); }
     rooms.forEach(function (r) {
       if (!r.tiles.length) { return; }
       list.appendChild(txt(el('div', 'pk-group'), r.name + (r.zone ? ' (zone)' : '')));

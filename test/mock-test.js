@@ -178,6 +178,7 @@ function call(port, method, p, body) {
   }));
   process.env.HUISPANEEL_CONFIG = cfgFile;
   process.env.HUISPANEEL_DATA = fs.mkdtempSync(path.join(os.tmpdir(), 'huispaneel-data-'));
+  process.env.HUISPANEEL_ATV_CMD = process.execPath + ' ' + path.join(__dirname, 'atv-mock.js');
   const app = require('../server.js');
   await new Promise((r) => app.server.listen(0, '127.0.0.1', r));
   const port = app.server.address().port;
@@ -451,6 +452,44 @@ function call(port, method, p, body) {
   r = await call(port, 'GET', '/api/state');
   assert.ok(r.json.rooms.some((x) => x.tiles.some((t) => t.name === 'Hue lamp via HB')), 'na ontkoppelen weer via Homebridge');
   console.log('ok  hue: ontkoppelen valt terug op Homebridge');
+
+  /* ---- Apple TV ---- */
+  const wait = (ms) => new Promise((res) => setTimeout(res, ms));
+  r = await call(port, 'GET', '/api/setup');
+  assert.strictEqual(r.json.atv.installed, true); assert.strictEqual(r.json.atv.device, null);
+  assert.strictEqual((await call(port, 'GET', '/api/state')).json.atv, null, 'zonder koppeling geen Apple TV');
+  assert.strictEqual((await call(port, 'POST', '/api/atv', { action: 'key', key: 'up' })).status, 502, 'niets gekoppeld');
+  r = await call(port, 'POST', '/api/setup', { atv: 'scan' });
+  assert.deepStrictEqual(r.json.result.map((d) => d.id), ['ATV1']);
+  assert.strictEqual((await call(port, 'POST', '/api/setup', { atv: 'pin', pin: '1234' })).status, 400, 'eerst koppelen');
+  r = await call(port, 'POST', '/api/setup', { atv: 'pair', device: 'ATV1', name: 'Woonkamer' });
+  assert.strictEqual(r.json.atv.pairing.step, 'companion');
+  assert.strictEqual((await call(port, 'POST', '/api/setup', { atv: 'pin', pin: '12a4' })).status, 400, 'alleen 4 cijfers');
+  assert.strictEqual((await call(port, 'POST', '/api/setup', { atv: 'pin', pin: '0000' })).status, 400, 'verkeerde code');
+  r = await call(port, 'POST', '/api/setup', { atv: 'pair', device: 'ATV1', name: 'Woonkamer' });
+  r = await call(port, 'POST', '/api/setup', { atv: 'pin', pin: '1234' });
+  assert.strictEqual(r.json.atv.pairing.step, 'airplay', 'tweede code voor AirPlay');
+  r = await call(port, 'POST', '/api/setup', { atv: 'pin', pin: '5678' });
+  assert.strictEqual(r.json.atv.pairing, null); assert.deepStrictEqual(r.json.atv.device, { id: 'ATV1', name: 'Woonkamer' });
+  await wait(300);
+  r = await call(port, 'GET', '/api/state');
+  assert.strictEqual(r.json.atv.ok, true); assert.strictEqual(r.json.atv.title, 'Film'); assert.strictEqual(r.json.atv.app, 'Netflix');
+  assert.ok(/^\/api\/atv\/art\?k=h1$/.test(r.json.atv.art), 'afbeelding');
+  assert.strictEqual(r.json.layout.screens[0].key, 'atv', 'Apple TV-scherm vooraan'); assert.strictEqual(r.json.layout.screens[0].on, true);
+  const art = await call(port, 'GET', r.json.atv.art);
+  assert.strictEqual(art.status, 200); assert.strictEqual(art.type, 'image/jpeg');
+  assert.strictEqual((await call(port, 'POST', '/api/atv', { action: 'key', key: 'up' })).status, 200);
+  assert.strictEqual((await call(port, 'POST', '/api/atv', { action: 'launch', app: 'com.netflix.Netflix' })).status, 200);
+  assert.strictEqual((await call(port, 'POST', '/api/atv', { action: 'key', key: 'rm -rf' })).status, 502, 'onbekende toets');
+  r = await call(port, 'POST', '/api/layout', { home: [{ type: 'atv', x: 0, y: 0, w: 2, h: 1 }] });
+  assert.strictEqual((await call(port, 'GET', '/api/state')).json.layout.home[0].type, 'atv', 'Apple TV-tegel op het beginscherm');
+  await call(port, 'POST', '/api/layout', { home: null });
+  assert.strictEqual(JSON.parse(fs.readFileSync(cfgFile, 'utf8')).atv.id, 'ATV1', 'koppeling bewaard');
+  r = await call(port, 'POST', '/api/setup', { atv: 'unpair' });
+  assert.strictEqual(r.json.atv.device, null);
+  r = await call(port, 'GET', '/api/state');
+  assert.strictEqual(r.json.atv, null); assert.ok(!r.json.layout.screens.some((x) => x.key === 'atv'), 'scherm weg na ontkoppelen');
+  console.log('ok  apple tv: zoeken, koppelen in twee stappen, bediening, afbeelding, ontkoppelen');
 
   r = await call(port, 'GET', '/');
   assert.strictEqual(r.status, 200);

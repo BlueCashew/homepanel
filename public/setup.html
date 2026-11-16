@@ -104,6 +104,9 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
 .btnrow:after { content: ""; display: table; clear: both; }
 .btnrow button { float: left; width: 49%; }
 .btnrow button + button { float: right; }
+.atv-dev { overflow: hidden; margin-top: 10px; padding: 12px 14px; border-radius: 14px; background: rgba(255,255,255,.07); }
+.atv-dev b { display: block; font-size: 16px; } .atv-dev small { display: block; font-size: 13px; color: rgba(244,240,230,.6); margin-top: 2px; }
+.atv-dev button { float: right; width: auto; margin: 0 0 0 12px; padding: 0 18px; height: 40px; }
 .btnrow button.secondary { margin-top: 16px; }
 
 /* Schermen */
@@ -220,6 +223,31 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
 
     <div class="card">
       <div class="card-head">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="4" width="20" height="13" rx="2.5"/><rect x="7" y="19" width="10" height="2" rx="1"/></svg></div>
+        <h2>Apple TV</h2>
+        <div class="pill" id="pill-atv">…</div>
+      </div>
+      <p class="state" id="atv-status">Status ophalen…</p>
+      <div id="atv-install" style="display:none">
+        <p>Voor de Apple TV heeft het paneel een extra onderdeel nodig (pyatv). Installeren duurt op de Pi een paar minuten.</p>
+        <button id="atv-b-install">Onderdelen installeren</button>
+      </div>
+      <div id="atv-find" style="display:none">
+        <button id="atv-b-scan">Zoek Apple TV</button>
+        <div id="atv-list"></div>
+      </div>
+      <div id="atv-pin" style="display:none">
+        <p id="atv-pin-text"></p>
+        <label for="atv-code">Code op de tv</label>
+        <input id="atv-code" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="4 cijfers">
+        <div class="btnrow"><button id="atv-b-pin">Bevestig</button><button id="atv-b-skip" class="secondary">Overslaan</button></div>
+      </div>
+      <div class="msg" id="m-atv"></div>
+      <button id="atv-b-unpair" class="secondary" style="display:none">Apple TV ontkoppelen</button>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
         <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg></div>
         <h2>Bijwerken</h2>
         <div class="pill" id="pill-upd">…</div>
@@ -308,6 +336,7 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
       if (!d.ok && updWaiting) { showUpd(null); return; }
       showUpd(d.update);
       showHue(d.hue);
+      showAtv(d.atv);
       if (!d.ok) { $('status').textContent = d.error; return; }
       $('status').textContent = 'Huispaneel' + (d.update && d.update.current ? ' · versie ' + short(d.update.current) : '');
       pill('pill-hb', h.ok ? 'good' : (h.configured ? 'bad' : ''), h.ok ? 'Gekoppeld' : (h.configured ? 'Login werkt niet' : 'Niet gekoppeld'));
@@ -351,6 +380,93 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
   $('b4').onclick = function () {
     call('POST', { hue: 'unpair' }, function (d) { $('m3').className = 'msg'; $('m3').textContent = d.ok ? 'Ontkoppeld. Lampen lopen weer via Homebridge.' : d.error; status(); });
   };
+  /* ----------------------------------------------------- apple tv */
+  var atvTimer = null;
+  function showAtv(a) {
+    var st = $('atv-status');
+    clearTimeout(atvTimer);
+    if (!a) { return; }
+    $('atv-install').style.display = !a.installed ? '' : 'none';
+    $('atv-find').style.display = a.installed && !a.device && !a.pairing ? '' : 'none';
+    $('atv-pin').style.display = a.pairing ? '' : 'none';
+    $('atv-b-unpair').style.display = a.device ? '' : 'none';
+    if (a.install && a.install.busy) {
+      pill('pill-atv', 'warn', 'Installeren');
+      st.textContent = 'Bezig met installeren: ' + a.install.line;
+      $('atv-b-install').disabled = true;
+      atvTimer = setTimeout(status, 3000);
+      return;
+    }
+    $('atv-b-install').disabled = false;
+    if (!a.installed) {
+      pill('pill-atv', a.install && a.install.error ? 'bad' : '', a.install && a.install.error ? 'Mislukt' : 'Niet ingesteld');
+      st.textContent = a.install && a.install.error ? a.install.error : 'Nog niet ingesteld.';
+      return;
+    }
+    if (a.pairing) {
+      pill('pill-atv', 'warn', 'Koppelen');
+      st.textContent = 'Koppelen met ' + a.pairing.name + '.';
+      $('atv-pin-text').textContent = a.pairing.step === 'companion'
+        ? 'Op je tv staat nu een code van 4 cijfers. Vul die hieronder in.'
+        : 'Nog een tweede code: daarmee ziet het paneel wat er speelt. Wacht tot de nieuwe code op de tv staat.';
+      $('atv-b-skip').style.display = a.pairing.step === 'airplay' ? '' : 'none';
+      $('atv-b-pin').style.width = a.pairing.step === 'airplay' ? '' : '100%';
+      return;
+    }
+    if (a.device) {
+      pill('pill-atv', a.connected ? 'good' : 'bad', a.connected ? 'Verbonden' : 'Niet bereikbaar');
+      st.textContent = 'Gekoppeld met ' + a.device.name + (a.connected ? '.' : (a.error ? ' · ' + a.error : ''));
+      if (!a.connected) { atvTimer = setTimeout(status, 5000); }
+      return;
+    }
+    pill('pill-atv', '', 'Niet gekoppeld');
+    st.textContent = 'Klaar om te koppelen. Zet de Apple TV aan en zoek hem op.';
+  }
+  function atvPost(body, wait, cb) {
+    $('m-atv').className = 'msg wait'; $('m-atv').textContent = wait;
+    call('POST', body, function (d) {
+      if (!d.ok) { show($('m-atv'), d, ''); if (d.atv) { showAtv(d.atv); } return; }
+      $('m-atv').className = 'msg'; $('m-atv').textContent = '';
+      if (d.atv) { showAtv(d.atv); }
+      if (cb) { cb(d); }
+    });
+  }
+  $('atv-b-install').onclick = function () { atvPost({ atv: 'install' }, 'Installeren gestart…', function () { status(); }); };
+  $('atv-b-scan').onclick = function () {
+    $('atv-list').innerHTML = '';
+    atvPost({ atv: 'scan' }, 'Zoeken in je netwerk…', function (d) {
+      var list = d.result || [];
+      if (!list.length) { $('m-atv').className = 'msg err'; $('m-atv').textContent = 'Geen Apple TV gevonden. Staat hij aan en in hetzelfde netwerk?'; return; }
+      list.forEach(function (dev) {
+        var row = document.createElement('div'), b = document.createElement('button');
+        row.className = 'atv-dev';
+        b.textContent = 'Koppel';
+        b.onclick = function () {
+          $('atv-list').innerHTML = '';
+          atvPost({ atv: 'pair', device: dev.id, name: dev.name }, 'Koppelen starten…', function () { $('atv-code').value = ''; $('atv-code').focus(); });
+        };
+        row.appendChild(b);
+        row.appendChild(document.createElement('b')).textContent = dev.name;
+        row.appendChild(document.createElement('small')).textContent = dev.model + ' · ' + dev.address;
+        $('atv-list').appendChild(row);
+      });
+    });
+  };
+  $('atv-b-pin').onclick = function () {
+    atvPost({ atv: 'pin', pin: $('atv-code').value }, 'Code controleren…', function (d) {
+      $('atv-code').value = ''; $('atv-code').removeAttribute('data-sent');
+      if (d.atv && !d.atv.pairing) { $('m-atv').className = 'msg ok'; $('m-atv').textContent = 'Gekoppeld. Op het paneel staat nu een Apple TV-scherm, rechts van het beginscherm.'; setTimeout(status, 4000); }
+    });
+  };
+  $('atv-code').onkeyup = function () { if (/^\d{4}$/.test(this.value) && this.getAttribute('data-sent') !== this.value) { this.setAttribute('data-sent', this.value); $('atv-b-pin').onclick(); } };
+  $('atv-b-skip').onclick = function () {
+    atvPost({ atv: 'skip' }, 'Afronden…', function () { $('m-atv').className = 'msg ok'; $('m-atv').textContent = 'Gekoppeld, zonder wat er speelt. De bediening werkt.'; setTimeout(status, 4000); });
+  };
+  $('atv-b-unpair').onclick = function () {
+    if (!window.confirm('De Apple TV ontkoppelen?')) { return; }
+    atvPost({ atv: 'unpair' }, 'Ontkoppelen…', function () { $('m-atv').className = 'msg ok'; $('m-atv').textContent = 'Ontkoppeld.'; });
+  };
+
   /* ----------------------------------------------------- uiterlijk */
   var THEMES = [['warm', 'Warm'], ['oceaan', 'Oceaan'], ['bos', 'Bos'], ['zand', 'Zand']];
   var look = { theme: 'warm', mode: 'light', schedule: 'sun', darkFrom: '21:00', darkTo: '07:00', sun: null };

@@ -77,6 +77,10 @@
     fog: svg('<path d="M4 8h16M2 12h18M5 16h15M7 20h10"' + STROKE + '/>')
   };
   ICON.fan = ICON['switch'];
+  ICON.chev = svg('<path d="M8 14.5l4-4 4 4"' + STROKE + '/>');
+  ICON.back = svg('<path d="M14.5 6.5L9 12l5.5 5.5"' + STROKE + '/>');
+  ICON.power = svg('<path d="M12 3.5v8"' + STROKE + '/><path d="M7 6.8a7.5 7.5 0 1 0 10 0"' + STROKE + '/>');
+  ICON.playpause = svg('<path d="M3 5.2v13.6a.8.8 0 0 0 1.2.7l9.6-6.8a.8.8 0 0 0 0-1.4L4.2 4.5a.8.8 0 0 0-1.2.7z"/><rect x="15" y="5" width="2.6" height="14" rx="1"/><rect x="19.4" y="5" width="2.6" height="14" rx="1"/>');
   function iconFor(t) {
     if (t.type === 'HueGroup') { return ICON.group; }
     return ICON[t.kind] || ICON['switch'];
@@ -442,6 +446,7 @@
       if (t.type === 'clock') { e = makeClock(t.variant, size); }
       else if (t.type === 'weather') { e = makeWeather(size); }
       else if (t.type === 'nowplaying') { e = makeNowPlaying(size); }
+      else if (t.type === 'atv') { e = makeAtvTile(size); }
       else {
         dev = tileById[t.ref];
         e = dev && dev.kind === 'climate' && dev.stepper ? makeThermo(t.ref, size) : makeDevice(t.ref, size, false);
@@ -485,6 +490,101 @@
       box.appendChild(e);
     });
     return f;
+  }
+
+
+  /* --------------------------------------------------------- apple tv */
+  function atvKey(key) { api('POST', 'api/atv', { action: 'key', key: key }, function (err) { if (err) { toast(err); } }); }
+  function goFaceKey(key) { var i; for (i = 0; i < faces.length; i++) { if (faces[i].key === key) { goFace(i); return; } } }
+  /* Knop voor de afstandsbediening: tikken stuurt één keer, vasthouden herhaalt (pijltjes, volume). */
+  function remoteBtn(e, key, repeat) {
+    var timer = null, rep = null, mine = false, sx = 0, sy = 0, moved = false, sent = false;
+    function stop() { clearTimeout(timer); clearInterval(rep); timer = rep = null; removeClass(e, 'is-down'); }
+    function hold() { sent = true; atvKey(key); rep = setInterval(function () { atvKey(key); }, 180); }
+    e.addEventListener('touchstart', function (ev) {
+      var t = ev.touches[0];
+      mine = !ev.__tapTaken; ev.__tapTaken = true;
+      if (!mine) { return; }
+      sx = t.clientX; sy = t.clientY; moved = false; sent = false;
+      addClass(e, 'is-down');
+      if (repeat) { timer = setTimeout(hold, 450); }
+    }, false);
+    e.addEventListener('touchmove', function (ev) {
+      var t = ev.touches[0];
+      if (mine && !sent && (Math.abs(t.clientX - sx) > 12 || Math.abs(t.clientY - sy) > 12)) { moved = true; stop(); }
+    }, false);
+    e.addEventListener('touchend', function (ev) {
+      if (!mine) { return; }
+      lastTouch = Date.now(); stop();
+      if (!moved) { ev.preventDefault(); if (!sent) { atvKey(key); } }
+    }, false);
+    e.addEventListener('touchcancel', stop, false);
+    e.addEventListener('click', function (ev) { if (ev.__tapTaken) { return; } ev.__tapTaken = true; if (Date.now() - lastTouch > 800) { atvKey(key); } }, false);
+  }
+  function buildAtv() {
+    var f = el('div', 'face face-atv',
+      '<div class="tv-left"><div class="tv-art mu-art"><div class="np-noart">' + ICON.tv + '</div></div><div class="tv-title"></div><div class="tv-sub"></div>' +
+      '<div class="tv-power"><div class="tile tv-pbtn">' + ICON.power + '</div><div class="tv-plabel"></div></div></div>' +
+      '<div class="tv-mid"><div class="tile tv-pad"><div class="tv-k tv-kup">' + ICON.chev + '</div><div class="tv-k tv-kright">' + ICON.chev + '</div>' +
+      '<div class="tv-k tv-kdown">' + ICON.chev + '</div><div class="tv-k tv-kleft">' + ICON.chev + '</div><div class="tile is-on tv-ok">OK</div></div>' +
+      '<div class="tv-row"><div class="tile tv-b tv-wide tv-back">' + ICON.back + '<span>Terug</span></div><div class="tile tv-b tv-wide tv-home">' + ICON.tv + '<span>Home</span></div></div>' +
+      '<div class="tv-row"><div class="tile tv-b tv-voldn">' + ICON.minus + '</div><div class="tile tv-b tv-pp">' + ICON.playpause + '</div><div class="tile tv-b tv-volup">' + ICON.plus + '</div></div></div>' +
+      '<div class="tv-col"><div class="mu-head">Apps</div><div class="mu-room tv-name"></div><div class="tv-apps scroll"></div></div>' +
+      '<div class="tv-off"><div class="tv-offbox"><div class="tv-offtitle">Apple TV niet bereikbaar</div><div class="tv-offtext"></div></div></div>');
+    var q = function (c) { return f.getElementsByClassName(c)[0]; }, appSig = '', lastArt = null;
+    remoteBtn(q('tv-kup'), 'up', true); remoteBtn(q('tv-kdown'), 'down', true);
+    remoteBtn(q('tv-kleft'), 'left', true); remoteBtn(q('tv-kright'), 'right', true);
+    remoteBtn(q('tv-ok'), 'select'); remoteBtn(q('tv-back'), 'menu'); remoteBtn(q('tv-home'), 'home');
+    remoteBtn(q('tv-pp'), 'play_pause'); remoteBtn(q('tv-voldn'), 'volume_down', true); remoteBtn(q('tv-volup'), 'volume_up', true);
+    onTap(q('tv-pbtn'), function () {
+      var a = state && state.atv;
+      if (!a) { return; }
+      a.power = a.power === 'on' ? 'off' : 'on';
+      atvKey(a.power === 'on' ? 'turn_on' : 'turn_off');
+      paintAll();
+    });
+    bound.push({ el: f, paint: function () {
+      var a = state && state.atv, sig, box, url;
+      if (!a) { return; }
+      setClass(f, 'is-offline', !a.ok);
+      setText(q('tv-offtext'), a.error || '');
+      setText(q('tv-name'), a.name);
+      url = a.art || '';
+      if (url !== lastArt) { lastArt = url; q('tv-art').style.backgroundImage = url ? 'url("' + url + '")' : 'none'; q('tv-art').children[0].style.display = url ? 'none' : ''; }
+      setText(q('tv-title'), a.power === 'off' ? 'Staat uit' : (a.title || a.app || 'Apple TV'));
+      setText(q('tv-sub'), a.power === 'off' ? a.name : (a.title ? [a.app, a.artist].filter(Boolean).join(' · ') : (a.state === 'idle' ? 'Niets aan het afspelen' : '')));
+      setClass(q('tv-pbtn'), 'is-on', a.power === 'on');
+      setText(q('tv-plabel'), a.power === 'on' ? 'Aan' : (a.power === 'off' ? 'Uit' : ''));
+      sig = (a.apps || []).map(function (x) { return x.id; }).join(',') + '|' + a.app;
+      if (sig !== appSig) {
+        appSig = sig; box = q('tv-apps'); box.innerHTML = '';
+        (a.apps || []).forEach(function (x) {
+          var e = el('div', 'tile tv-app' + (x.name === a.app ? ' is-on' : ''), '<span></span><b></b>');
+          setText(e.children[0], x.name.charAt(0).toUpperCase());
+          setText(e.children[1], x.name);
+          onTap(e, function () { api('POST', 'api/atv', { action: 'launch', app: x.id }, function (err) { if (err) { toast(err); } }); });
+          box.appendChild(e);
+        });
+        if (!(a.apps || []).length) { box.appendChild(el('div', 'mu-empty', 'De lijst met apps komt zodra de Apple TV verbonden is.')); }
+      }
+    } });
+    return f;
+  }
+  function makeAtvTile(size) {
+    var e = el('div', 'tile k-np k-atv s-' + size, '<div class="np-art"></div><div class="np-noart">' + ICON.tv + '</div><div class="np-shade"></div><div class="np-title"></div><div class="np-artist"></div><div class="np-btn">' + ICON.playpause + '</div>');
+    var lastArt = null;
+    onTap(e.children[5], function () { atvKey('play_pause'); });
+    onTap(e, function () { goFaceKey('atv'); });
+    bound.push({ el: e, paint: function () {
+      var a = state && state.atv, url;
+      if (!a) { setText(e.children[3], 'Apple TV'); setText(e.children[4], 'Niet gekoppeld'); e.children[5].style.display = 'none'; return; }
+      e.children[5].style.display = a.ok && a.power !== 'off' ? '' : 'none';
+      url = a.art || '';
+      if (url !== lastArt) { lastArt = url; e.children[0].style.backgroundImage = url ? 'url("' + url + '")' : 'none'; e.children[1].style.display = url ? 'none' : ''; }
+      setText(e.children[3], !a.ok ? a.name : (a.power === 'off' ? a.name : (a.title || a.app || a.name)));
+      setText(e.children[4], !a.ok ? 'Niet bereikbaar' : (a.power === 'off' ? 'Staat uit' : (a.title ? [a.app, a.artist].filter(Boolean).join(' · ') : 'Apple TV')));
+    } });
+    return e;
   }
 
   /* -------------------------------------------------------- klokscherm */
@@ -704,6 +804,7 @@
     screensOn().forEach(function (s) {
       var r;
       if (s.key === 'clock') { faces.push({ key: 'clock', el: buildClockFace() }); return; }
+      if (s.key === 'atv') { if (state.atv) { faces.push({ key: 'atv', el: buildAtv() }); } return; }
       r = roomByKey(s.key);
       if (r && r.tiles.length) { faces.push({ key: s.key, el: buildRoom(r) }); }
     });
@@ -719,7 +820,7 @@
   }
   function signature() {
     var l = state.layout || {}, rs = (state.rooms || []).map(function (r) { return r.key + ':' + r.tiles.map(function (t) { return t.id + t.kind; }).join(','); });
-    return W() + 'x' + window.innerHeight + '|' + JSON.stringify(l.home) + '|' + JSON.stringify(screensOn()) + '|' + rs.join(';');
+    return W() + 'x' + window.innerHeight + '|' + JSON.stringify(l.home) + '|' + JSON.stringify(screensOn()) + '|' + rs.join(';') + '|' + (state.atv ? 'atv' : '');
   }
   function paintAll() {
     var i;

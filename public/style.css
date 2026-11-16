@@ -193,6 +193,47 @@ html, body {
 .slider-ct:before { background: #ffb35c; background: -webkit-linear-gradient(left, #ffb35c 0%, #fff1dc 55%, #cfe2ff 100%); background: linear-gradient(90deg, #ffb35c 0%, #fff1dc 55%, #cfe2ff 100%); }
 .slider-ct .slider-fill { display: none; }
 
+
+/* ---------------------------------------------------------- apple tv */
+.face-atv .tv-left { position: absolute; left: 40px; top: 40px; width: 270px; }
+.face-atv .tv-art { width: 270px; height: 270px; }
+.face-atv .tv-art .np-noart { left: 50%; top: 50%; width: 96px; height: 96px; margin: -48px 0 0 -48px; }
+.tv-title { font-size: 24px; line-height: 29px; font-weight: 600; margin-top: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tv-sub { font-size: 16px; line-height: 21px; margin-top: 4px; opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 21px; }
+.tv-power { position: relative; height: 64px; margin-top: 22px; }
+.face-atv .tv-pbtn { left: 0; top: 0; width: 64px; height: 64px; border-radius: 32px; }
+.tv-pbtn svg { position: absolute; left: 18px; top: 18px; width: 28px; height: 28px; }
+.tv-plabel { position: absolute; left: 80px; top: 0; line-height: 64px; font-size: 17px; font-weight: 600; }
+.face-atv .tv-mid { position: absolute; left: 340px; top: 40px; width: 360px; }
+.face-atv .tv-pad { position: relative; width: 340px; height: 340px; margin: 0 10px; border-radius: 170px; }
+.tv-k { position: absolute; width: 110px; height: 110px; }
+.tv-k svg { position: absolute; left: 33px; top: 33px; width: 44px; height: 44px; }
+.tv-k.is-down { opacity: .45; }
+.tv-kup { left: 115px; top: 0; }
+.tv-kdown { left: 115px; top: 230px; -webkit-transform: rotate(180deg); transform: rotate(180deg); }
+.tv-kleft { left: 0; top: 115px; -webkit-transform: rotate(-90deg); transform: rotate(-90deg); }
+.tv-kright { left: 230px; top: 115px; -webkit-transform: rotate(90deg); transform: rotate(90deg); }
+.face-atv .tv-ok { left: 105px; top: 105px; width: 130px; height: 130px; border-radius: 65px; line-height: 130px; text-align: center; font-size: 22px; font-weight: 600; letter-spacing: 1px; }
+.tv-row { position: relative; height: 64px; margin-top: 22px; }
+.face-atv .tv-b { top: 0; height: 64px; border-radius: 32px; }
+.tv-b svg { position: absolute; top: 19px; width: 26px; height: 26px; }
+.face-atv .tv-wide { width: 165px; } .tv-wide svg { left: 26px; }
+.tv-wide span { position: absolute; left: 62px; top: 0; line-height: 64px; font-size: 17px; font-weight: 600; }
+.face-atv .tv-back { left: 10px; } .face-atv .tv-home { left: 185px; }
+.face-atv .tv-voldn, .face-atv .tv-pp, .face-atv .tv-volup { width: 100px; } .tv-voldn svg, .tv-pp svg, .tv-volup svg { left: 37px; }
+.face-atv .tv-voldn { left: 10px; } .face-atv .tv-pp { left: 130px; } .face-atv .tv-volup { left: 250px; }
+.face-atv .tv-col { position: absolute; left: 740px; right: 32px; top: 36px; bottom: 56px; }
+.tv-apps { position: absolute; left: 0; right: 0; top: 74px; bottom: 0; overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.face-atv .tv-app { position: relative; height: 56px; margin-bottom: 10px; border-radius: 16px; }
+.tv-app span { position: absolute; left: 10px; top: 10px; width: 36px; height: 36px; border-radius: 18px; line-height: 36px; text-align: center; font-size: 16px; font-weight: 700; background: rgba(255,255,255,.18); }
+.tv-app.is-on span { background: rgba(0,0,0,.08); }
+.tv-app b { position: absolute; left: 58px; right: 12px; top: 0; line-height: 56px; font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tv-off { display: none; position: absolute; left: 0; top: 0; right: 0; bottom: 52px; background: rgba(0,0,0,.35); }
+.face-atv.is-offline .tv-off { display: block; }
+.tv-offbox { position: absolute; left: 50%; top: 40%; width: 460px; margin-left: -230px; padding: 24px 28px; border-radius: 26px; background: rgba(20,22,28,.92); color: #f4f0e6; text-align: center; }
+.tv-offtitle { font-size: 22px; font-weight: 600; }
+.tv-offtext { font-size: 15px; line-height: 21px; margin-top: 8px; opacity: .75; }
+
 /* ============================================================= thema's */
 
 /* Warm: oranje verloop met zachte lichtvlekken, matglazen tegels. */
@@ -253,6 +294,8 @@ body.theme-zand { background: #ece3d4; color: #2d261d;
 .theme-zand .fav-art, .theme-zand .mu-art { background-color: rgba(255,255,255,.42); }
 .theme-zand .face .slider:before { background: rgba(45,38,29,.15); }
 .theme-zand .face .slider-fill { background: #2d261d; }
+.theme-zand .tv-app span { background: rgba(45,38,29,.08); }
+.mode-dark.theme-zand .tv-app span { background: rgba(255,255,255,.12); }
 .theme-zand .fav-art .np-noart, .theme-zand .mu-art .np-noart { color: #2d261d; opacity: .22; }
 .mode-dark.theme-zand .fav-art .np-noart, .mode-dark.theme-zand .mu-art .np-noart { color: #fff; opacity: .55; }
 

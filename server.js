@@ -38,6 +38,7 @@ function loadConfig() {
   cfg.sonos = Object.assign({ enabled: true, host: '', room: '' }, cfg.sonos || {});
   cfg.weather = Object.assign({ latitude: null, longitude: null, place: '' }, cfg.weather || {});
   cfg.hue = Object.assign({ host: '', key: '', name: '' }, cfg.hue || {});
+  cfg.atv = Object.assign({ id: '', name: '' }, cfg.atv || {});
   cfg.update = Object.assign({ auto: false, repo: 'BlueCashew/homepanel', branch: 'main' }, cfg.update || {});
   cfg.layout = Object.assign({ theme: 'warm', mode: 'light', schedule: 'sun', darkFrom: '21:00', darkTo: '07:00', home: null, screens: null }, cfg.layout || {});
   cfg.hide = cfg.hide || [];
@@ -47,7 +48,7 @@ const config = loadConfig();
 const LISTEN_PORT = Number(process.env.HUISPANEEL_PORT) || config.port;
 function saveConfig() {
   if (SELFTEST || DEMO) return;
-  const out = { port: config.port, homebridge: config.homebridge, hue: config.hue, sonos: config.sonos, weather: config.weather, update: config.update, layout: config.layout, hide: config.hide };
+  const out = { port: config.port, homebridge: config.homebridge, hue: config.hue, atv: config.atv, sonos: config.sonos, weather: config.weather, update: config.update, layout: config.layout, hide: config.hide };
   fs.writeFileSync(CONFIG_FILE, JSON.stringify(out, null, 2) + '\n', { mode: 0o600 });
   try { fs.chmodSync(CONFIG_FILE, 0o600); } catch (e) { /* niet erg */ }
 }
@@ -857,7 +858,7 @@ function cleanHome(tiles) {
   const used = {};
   const out = [];
   tiles.slice(0, GRID.cols * GRID.rows * 2).forEach((t) => {
-    if (!t || ['device', 'clock', 'weather', 'nowplaying'].indexOf(t.type) === -1) return;
+    if (!t || ['device', 'clock', 'weather', 'nowplaying', 'atv'].indexOf(t.type) === -1) return;
     const w = t.w === 2 ? 2 : 1;
     const h = t.h === 2 ? 2 : (t.h === 0.5 && t.type === 'device' ? 0.5 : 1);
     const x = Math.floor(Number(t.x)), y2 = Math.floor(Number(t.y) * 2), h2 = h * 2;
@@ -914,11 +915,15 @@ function screensOut(rooms) {
   const byKey = {};
   rooms.forEach((r) => { byKey[r.key] = r; });
   byKey.clock = { key: 'clock', name: 'Klok', zone: false, special: true };
+  const hasAtv = DEMO || !!config.atv.id;
+  if (hasAtv) byKey.atv = { key: 'atv', name: 'Apple TV', zone: false, special: true };
   const out = [];
   const seen = {};
   saved.forEach((x) => { if (byKey[x.key] && !seen[x.key]) { seen[x.key] = true; out.push({ key: x.key, name: byKey[x.key].name, zone: !!byKey[x.key].zone, on: x.on }); } });
   rooms.forEach((r) => { if (!seen[r.key]) { seen[r.key] = true; out.push({ key: r.key, name: r.name, zone: !!r.zone, on: !r.zone }); } });
   if (!seen.clock) out.push({ key: 'clock', name: 'Klok', zone: false, on: false });
+  /* Net gekoppeld: de Apple TV komt vooraan, direct na het beginscherm. */
+  if (hasAtv && !seen.atv) out.unshift({ key: 'atv', name: 'Apple TV', zone: false, on: true });
   return out;
 }
 
@@ -965,7 +970,7 @@ const MARK = path.join(ROOT, '.update-pending.json');
 const BACKUP = path.join(ROOT, '.backup');
 const WORK = path.join(ROOT, '.update');
 /* Wat bij een update vervangen wordt. config.json staat er bewust niet tussen. */
-const APP_FILES = ['server.js', 'start.js', 'public', 'README.md', 'huispaneel.service', 'install.sh', 'config.example.json', 'test', 'VERSION'];
+const APP_FILES = ['server.js', 'start.js', 'atv.py', 'public', 'README.md', 'huispaneel.service', 'install.sh', 'config.example.json', 'test', 'VERSION'];
 const upd = { latest: null, checkedAt: 0, checking: null, busy: false, step: '', error: null, done: null };
 
 function currentVersion() {
@@ -1109,6 +1114,206 @@ function updTimer() {
   }, 60 * 60 * 1000);
 }
 
+/* ------------------------------------------------------------- apple tv */
+/* Het paneel praat met de Apple TV via een klein Python-proces (atv.py, met pyatv).
+   Dat proces houdt de verbinding open, zodat een druk op een knop meteen doorkomt.
+   pyatv staat in een eigen omgeving in data/pyatv; de koppelgegevens in data/atv.json. */
+const ATV_DIR = process.env.HUISPANEEL_DATA || path.join(ROOT, 'data');
+const ATV_PY = path.join(ATV_DIR, 'pyatv', 'bin', 'python');
+const ATV_STORE = path.join(ATV_DIR, 'atv.json');
+const atv = { proc: null, ready: null, seq: 0, wait: {}, state: { connected: false }, error: null, art: null, pair: null, install: null, restart: null, log: [] };
+
+function atvCmd() {
+  if (process.env.HUISPANEEL_ATV_CMD) return process.env.HUISPANEEL_ATV_CMD.split(' ');
+  return [ATV_PY, path.join(ROOT, 'atv.py'), ATV_STORE];
+}
+function atvInstalled() {
+  if (process.env.HUISPANEEL_ATV_CMD) return true;
+  try {
+    const lib = path.join(ATV_DIR, 'pyatv', 'lib');
+    return fs.readdirSync(lib).some((d) => fs.existsSync(path.join(lib, d, 'site-packages', 'pyatv')));
+  } catch (e) { return false; }
+}
+
+function atvStart() {
+  if (atv.proc) return atv.ready;
+  if (!atvInstalled()) return Promise.reject(new Error('De Apple TV-onderdelen zijn nog niet geïnstalleerd'));
+  const cmd = atvCmd();
+  const p = childProcess.spawn(cmd[0], cmd.slice(1), { stdio: ['pipe', 'pipe', 'pipe'] });
+  atv.proc = p;
+  atv.ready = new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error('De Apple TV-koppeling start niet op')), 60000);
+    p.__ready = () => { clearTimeout(t); resolve(); };
+    p.__fail = (e) => { clearTimeout(t); reject(e); };
+  });
+  atv.ready.catch(() => {});
+  let buf = '';
+  p.stdout.on('data', (d) => {
+    buf += d.toString('utf8');
+    let i;
+    while ((i = buf.indexOf('\n')) !== -1) {
+      const line = buf.slice(0, i); buf = buf.slice(i + 1);
+      let m; try { m = JSON.parse(line); } catch (e) { continue; }
+      atvMessage(p, m);
+    }
+  });
+  p.stderr.on('data', (d) => { atv.log = atv.log.concat(String(d).split('\n').filter(Boolean)).slice(-20); });
+  p.on('error', (e) => { atv.error = e.message; });
+  p.on('exit', (code) => {
+    if (atv.proc !== p) return;
+    atv.proc = null; atv.state = { connected: false };
+    if (p.__fail) p.__fail(new Error('De Apple TV-koppeling is gestopt'));
+    Object.keys(atv.wait).forEach((k) => { atv.wait[k].reject(new Error('De Apple TV-koppeling is gestopt')); delete atv.wait[k]; });
+    if (code) console.log('[atv] hulpproces gestopt (' + code + '): ' + atv.log.slice(-3).join(' | '));
+    /* Gekoppeld? Dan na een halve minuut opnieuw proberen. */
+    if (config.atv.id && !atv.restart) atv.restart = setTimeout(() => { atv.restart = null; atvConnect().catch(() => {}); }, 30000);
+  });
+  return atv.ready;
+}
+function atvStop() {
+  if (atv.proc) { const p = atv.proc; atv.proc = null; try { p.kill(); } catch (e) { /* al weg */ } }
+  atv.state = { connected: false }; atv.art = null;
+}
+function atvMessage(p, m) {
+  if (m.event === 'ready') { if (p.__ready) p.__ready(); return; }
+  if (m.event === 'state') {
+    delete m.event;
+    atv.state = m;
+    if (m.connected) atv.error = null;
+    if (m.art && (!atv.art || atv.art.key !== m.art)) atvArtwork(m.art);
+    return;
+  }
+  const w = atv.wait[m.id];
+  if (!w) return;
+  delete atv.wait[m.id];
+  if (m.ok) w.resolve(m.result); else w.reject(new Error(m.error || 'Apple TV gaf een fout'));
+}
+async function atvCall(cmd, args, timeout) {
+  await atvStart();
+  const id = ++atv.seq;
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => { delete atv.wait[id]; reject(new Error('De Apple TV reageert niet')); }, timeout || 15000);
+    atv.wait[id] = { resolve: (v) => { clearTimeout(t); resolve(v); }, reject: (e) => { clearTimeout(t); reject(e); } };
+    atv.proc.stdin.write(JSON.stringify(Object.assign({ id, cmd }, args || {})) + '\n');
+  });
+}
+async function atvConnect() {
+  if (!config.atv.id) return;
+  try {
+    await atvCall('connect', { device: config.atv.id }, 30000);
+  } catch (e) {
+    atv.error = e.message;
+    /* Niet gevonden (tv slaapt diep, netwerk weg): het hulpproces blijft draaien, dus zelf later opnieuw. */
+    if (!atv.restart) atv.restart = setTimeout(() => { atv.restart = null; atvConnect().catch(() => {}); }, 60000);
+    throw e;
+  }
+}
+async function atvArtwork(key) {
+  try {
+    const a = await atvCall('artwork', { width: 512 });
+    if (a && a.data && atv.state.art === key) atv.art = { key, type: a.mime || 'image/jpeg', data: Buffer.from(a.data, 'base64') };
+  } catch (e) { /* geen afbeelding */ }
+}
+function atvOut() {
+  if (!config.atv.id) return null;
+  const s = atv.state;
+  return {
+    ok: !!s.connected, error: s.connected ? null : (atv.error || 'Verbinden…'),
+    name: config.atv.name || s.name || 'Apple TV', power: s.power || 'unknown', state: s.state || 'idle',
+    title: s.title || '', artist: s.artist || '', app: s.app ? s.app.name : '',
+    art: s.title && atv.art && atv.art.key === s.art ? '/api/atv/art?k=' + encodeURIComponent(atv.art.key) : '',
+    apps: s.apps || [],
+  };
+}
+const ATV_KEYS = ['up', 'down', 'left', 'right', 'select', 'menu', 'home', 'top_menu', 'play_pause', 'play', 'pause', 'next', 'previous',
+  'skip_forward', 'skip_backward', 'volume_up', 'volume_down', 'control_center', 'turn_on', 'turn_off'];
+async function atvDo(b) {
+  if (!config.atv.id) throw new Error('Er is geen Apple TV gekoppeld');
+  if (b.action === 'key') {
+    if (ATV_KEYS.indexOf(b.key) === -1) throw new Error('Onbekende toets');
+    if (b.key === 'turn_on' || b.key === 'turn_off') atv.state.power = b.key === 'turn_on' ? 'on' : 'off';
+    return atvCall('key', { key: b.key });
+  }
+  if (b.action === 'launch') {
+    if (typeof b.app !== 'string' || !b.app || b.app.length > 200) throw new Error('Onbekende app');
+    return atvCall('launch', { app: b.app });
+  }
+  throw new Error('Onbekende opdracht');
+}
+
+/* Installeren van pyatv vanuit de instellingen: duurt op een Pi Zero een paar minuten. */
+function atvInstall() {
+  if (atv.install && atv.install.busy) return;
+  const venv = path.join(ATV_DIR, 'pyatv');
+  fs.mkdirSync(ATV_DIR, { recursive: true });
+  atv.install = { busy: true, ok: false, line: 'Omgeving aanmaken…', error: null };
+  const sh = 'python3 -m venv "' + venv + '" && "' + venv + '/bin/pip" install --no-cache-dir --prefer-binary pyatv';
+  const p = childProcess.spawn('sh', ['-c', sh], { stdio: ['ignore', 'pipe', 'pipe'] });
+  const onData = (d) => {
+    const lines = String(d).split('\n').map((l) => l.trim()).filter(Boolean);
+    if (lines.length) atv.install.line = lines[lines.length - 1].slice(0, 160);
+  };
+  p.stdout.on('data', onData); p.stderr.on('data', onData);
+  p.on('exit', (code) => {
+    atv.install.busy = false;
+    atv.install.ok = code === 0 && atvInstalled();
+    if (!atv.install.ok) atv.install.error = 'Installeren mislukt: ' + atv.install.line;
+  });
+}
+function atvStatus() {
+  return {
+    installed: atvInstalled(), install: atv.install,
+    device: config.atv.id ? { id: config.atv.id, name: config.atv.name } : null,
+    connected: !!atv.state.connected, error: config.atv.id && !atv.state.connected ? atv.error : null,
+    pairing: atv.pair ? { name: atv.pair.name, step: atv.pair.step } : null,
+  };
+}
+async function atvSetup(b) {
+  if (b.atv === 'install') { atvInstall(); return; }
+  if (b.atv === 'scan') return atvCall('scan', { timeout: 5 }, 30000);
+  if (b.atv === 'pair') {
+    if (typeof b.device !== 'string' || !b.device) throw new Error('Kies een Apple TV');
+    atv.pair = { device: b.device, name: String(b.name || 'Apple TV').slice(0, 80), step: 'companion' };
+    await atvCall('pair_begin', { device: b.device, protocol: 'companion' }, 30000);
+    return;
+  }
+  if (b.atv === 'pin') {
+    const pr = atv.pair;
+    if (!pr) throw new Error('Begin eerst met koppelen');
+    if (!/^\d{4}$/.test(String(b.pin || '').trim())) throw new Error('Vul de 4 cijfers in die op de tv staan');
+    await atvCall('pair_finish', { pin: String(b.pin).trim() }, 30000);
+    if (pr.step === 'companion') {
+      /* Tweede stap: AirPlay, voor wat er speelt en de afbeelding. Lukt dat niet, dan werkt de bediening toch. */
+      pr.step = 'airplay';
+      try { await atvCall('pair_begin', { device: pr.device, protocol: 'airplay' }, 30000); return; } catch (e) { /* zonder AirPlay verder */ }
+    }
+    atv.pair = null;
+    config.atv.id = pr.device; config.atv.name = pr.name; saveConfig();
+    try { fs.chmodSync(ATV_STORE, 0o600); } catch (e) { /* nog geen bestand */ }
+    atvConnect().catch(() => {});
+    return;
+  }
+  if (b.atv === 'skip') {
+    /* AirPlay-stap overslaan: de bediening werkt, alleen 'nu speelt' ontbreekt dan. */
+    const pr = atv.pair;
+    if (!pr || pr.step !== 'airplay') throw new Error('Er is niets om over te slaan');
+    atv.pair = null;
+    config.atv.id = pr.device; config.atv.name = pr.name; saveConfig();
+    atvConnect().catch(() => {});
+    return;
+  }
+  if (b.atv === 'cancel') { atv.pair = null; return; }
+  if (b.atv === 'unpair') {
+    const id = config.atv.id;
+    config.atv.id = ''; config.atv.name = ''; saveConfig();
+    if (atv.restart) { clearTimeout(atv.restart); atv.restart = null; }
+    if (id && atv.proc) { try { await atvCall('forget', { device: id }, 20000); } catch (e) { /* tv onbereikbaar: gegevens blijven dan staan */ } }
+    atvStop();
+    return;
+  }
+  throw new Error('Onbekende Apple TV-opdracht');
+}
+
 /* ------------------------------------------------------------------ weer */
 
 const WMO = {
@@ -1160,6 +1365,7 @@ async function setup(b) {
   if (b.update === 'apply') { updApply(); await sleep(300); out.update = updStatus(); return out; }
   if (b.update === 'auto') { config.update.auto = !!b.value; saveConfig(); out.update = updStatus(); return out; }
   if (b.hue === 'pair') { await huePairStart(b.host); out.hue = hueStatus(); return out; }
+  if (b.atv) { out.result = await atvSetup(b); out.atv = atvStatus(); return out; }
   if (b.hue === 'unpair') {
     config.hue.key = ''; config.hue.name = ''; hue.cache = null; hue.error = null; hue.pairing = null;
     saveConfig(); out.hue = hueStatus(); return out;
@@ -1214,6 +1420,10 @@ const demo = {
     ] },
   ],
   sonos: { ok: true, room: 'Woonkamer', state: 'playing', source: 'music', title: 'Voorbeeldnummer', artist: 'Voorbeeldartiest', album: 'Demo-album', art: '', volume: 28, mute: false, canSkip: true },
+  atv: { ok: true, error: null, name: 'Woonkamer', power: 'on', state: 'playing', title: 'Planet Earth III', artist: 'Aflevering 2 · Oceaan', app: 'TV', art: '',
+    apps: [{ id: 'com.apple.TVWatchList', name: 'TV' }, { id: 'com.netflix.Netflix', name: 'Netflix' }, { id: 'com.google.ios.youtube', name: 'YouTube' },
+      { id: 'nl.npo.player', name: 'NPO Start' }, { id: 'com.disney.disneyplus', name: 'Disney+' }, { id: 'com.apple.TVMusic', name: 'Muziek' },
+      { id: 'com.videoland.app', name: 'Videoland' }, { id: 'com.apple.TVPhotos', name: 'Foto\'s' }, { id: 'com.spotify.client', name: 'Spotify' }] },
   weather: { temp: 9, text: 'Half bewolkt', wind: 14, max: 11, min: 5, sunrise: '07:52', sunset: '16:47' },
   favorites: [
     { id: 'FV:2/1', title: 'Zondagochtend', desc: 'Apple Music-playlist', kind: 'favorite', art: '' },
@@ -1231,6 +1441,15 @@ function demoText(t) {
   if (t.kind === 'light') return t.on ? t.level + '%' : 'Uit';
   if (t.kind === 'cover') return t.level >= 100 ? 'Open' : (t.level <= 0 ? 'Dicht' : t.level + '%');
   return t.on ? 'Aan' : 'Uit';
+}
+function demoAtv(b) {
+  const a = demo.atv;
+  if (b.action === 'key') {
+    if (b.key === 'turn_on') a.power = 'on';
+    if (b.key === 'turn_off') a.power = 'off';
+    if (b.key === 'play_pause') a.state = a.state === 'playing' ? 'paused' : 'playing';
+  }
+  if (b.action === 'launch') { const x = a.apps.filter((y) => y.id === b.app)[0]; if (x) { a.app = x.name; a.power = 'on'; } }
 }
 function demoSet(id, char, value) {
   demo.rooms.forEach((r) => r.tiles.forEach((t) => {
@@ -1254,7 +1473,7 @@ async function getState() {
   if (DEMO) {
     demo.rooms.forEach((r) => r.tiles.forEach((t) => { t.text = demoText(t); }));
     demo.rooms.forEach((r) => { r.key = r.key || 'hb:' + r.name; r.tiles.forEach((t) => { t.room = r.name; }); });
-    return { ok: true, demo: true, time: Date.now(), version: 'demo', homebridge: { ok: true }, rooms: demo.rooms, sonos: demo.sonos, weather: demo.weather, layout: layoutOut(demo.rooms), favorites: demo.favorites };
+    return { ok: true, demo: true, time: Date.now(), version: 'demo', homebridge: { ok: true }, rooms: demo.rooms, sonos: demo.sonos, weather: demo.weather, layout: layoutOut(demo.rooms), favorites: demo.favorites, atv: demo.atv };
   }
   weatherTick();
   const out = { ok: true, time: Date.now(), version: currentVersion(), homebridge: { ok: true }, rooms: [], sonos: null, weather: weather.data };
@@ -1286,6 +1505,7 @@ async function getState() {
     r.tiles.forEach((t) => { if (!t.room) t.room = r.name; });
   });
   out.layout = layoutOut(out.rooms);
+  out.atv = atvOut();
   if (config.sonos.enabled) {
     try { out.favorites = await favLoad(); } catch (e) { out.favorites = null; }
   }
@@ -1336,7 +1556,7 @@ const server = http.createServer(async (req, res) => {
       if (config.homebridge.username && !hb.token && !hb.error) { try { await hbLoad(); } catch (e) { /* status hieronder */ } }
       if (config.hue.key && !hue.cache && !hue.error) { try { await hueLoad(); } catch (e) { /* status hieronder */ } }
       if (!DEMO) { try { await updCheck(false); } catch (e) { upd.error = upd.busy ? upd.error : e.message; } }
-      return json(res, 200, { ok: true, homebridge: { configured: !!config.homebridge.username, ok: !!hb.token && !hb.error, error: hb.error }, hue: hueStatus(), update: updStatus(), place: config.weather.place || '' });
+      return json(res, 200, { ok: true, homebridge: { configured: !!config.homebridge.username, ok: !!hb.token && !hb.error, error: hb.error }, hue: hueStatus(), atv: atvStatus(), update: updStatus(), place: config.weather.place || '' });
     }
     if (req.method === 'POST' && u.pathname === '/api/sonos') {
       const b = await readBody(req);
@@ -1352,6 +1572,16 @@ const server = http.createServer(async (req, res) => {
         await sonosDo(String(b.action), b.value);
       }
       return json(res, 200, { ok: true });
+    }
+    if (req.method === 'POST' && u.pathname === '/api/atv') {
+      const b = await readBody(req);
+      if (DEMO) demoAtv(b); else await atvDo(b);
+      return json(res, 200, { ok: true });
+    }
+    if (req.method === 'GET' && u.pathname === '/api/atv/art') {
+      if (!atv.art || atv.art.key !== u.searchParams.get('k')) return send(res, 404, 'text/plain', 'geen afbeelding');
+      res.writeHead(200, { 'Content-Type': atv.art.type, 'Cache-Control': 'max-age=86400', 'Content-Length': atv.art.data.length });
+      return res.end(atv.art.data);
     }
     if (req.method === 'GET' && u.pathname === '/api/sonos/art') {
       const a = await sonosArt(u.searchParams.get('k') || '');
@@ -1372,6 +1602,7 @@ function start() {
     if (!SELFTEST) setTimeout(() => { try { fs.unlinkSync(MARK); } catch (e) { /* geen update bezig */ } }, 30000);
   });
   updTimer();
+  if (!SELFTEST && !DEMO && config.atv.id) atvConnect().catch((e) => console.log('[atv] ' + e.message));
 }
 
 if (require.main === module) start();
