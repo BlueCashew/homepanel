@@ -39,7 +39,7 @@ function loadConfig() {
   cfg.weather = Object.assign({ latitude: null, longitude: null, place: '' }, cfg.weather || {});
   cfg.hue = Object.assign({ host: '', key: '', name: '' }, cfg.hue || {});
   cfg.update = Object.assign({ auto: false, repo: 'BlueCashew/homepanel', branch: 'main' }, cfg.update || {});
-  cfg.layout = Object.assign({ theme: 'warm', home: null, screens: null }, cfg.layout || {});
+  cfg.layout = Object.assign({ theme: 'warm', mode: 'light', darkFrom: '21:00', darkTo: '07:00', home: null, screens: null }, cfg.layout || {});
   cfg.hide = cfg.hide || [];
   return cfg;
 }
@@ -846,6 +846,9 @@ async function hueSet(id, ch, value) {
 
 const GRID = { cols: 4, rows: 3 };
 const THEMES = ['warm', 'oceaan', 'donker', 'nacht', 'eigen'];
+// Weergave staat los van het thema: licht, donker of automatisch op tijd.
+const MODES = ['light', 'dark', 'auto'];
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 const DATA = process.env.HUISPANEEL_DATA || path.join(ROOT, 'data');
 const BG_FILE = path.join(DATA, 'achtergrond.jpg');
 
@@ -928,6 +931,9 @@ function screensOut(rooms) {
 function layoutOut(rooms) {
   return {
     theme: THEMES.indexOf(config.layout.theme) === -1 ? 'warm' : config.layout.theme,
+    mode: MODES.indexOf(config.layout.mode) === -1 ? 'light' : config.layout.mode,
+    darkFrom: HHMM.test(config.layout.darkFrom) ? config.layout.darkFrom : '21:00',
+    darkTo: HHMM.test(config.layout.darkTo) ? config.layout.darkTo : '07:00',
     grid: GRID,
     home: Array.isArray(config.layout.home) ? config.layout.home : defaultHome(rooms),
     custom: Array.isArray(config.layout.home),
@@ -943,6 +949,14 @@ function saveLayout(b) {
     if (b.theme === 'eigen' && !bgVersion()) throw new Error('Upload eerst een eigen achtergrond');
     config.layout.theme = b.theme;
   }
+  if (b.mode !== undefined && MODES.indexOf(b.mode) === -1) throw new Error('Onbekende weergave');
+  const from = b.darkFrom !== undefined ? String(b.darkFrom) : config.layout.darkFrom;
+  const to = b.darkTo !== undefined ? String(b.darkTo) : config.layout.darkTo;
+  if (!HHMM.test(from) || !HHMM.test(to)) throw new Error('Tijd moet uu:mm zijn, bijvoorbeeld 21:00');
+  if ((b.darkFrom !== undefined || b.darkTo !== undefined) && from === to) throw new Error('Begin- en eindtijd mogen niet gelijk zijn');
+  if (b.mode !== undefined) config.layout.mode = b.mode;
+  config.layout.darkFrom = from;
+  config.layout.darkTo = to;
   saveConfig();
 }
 

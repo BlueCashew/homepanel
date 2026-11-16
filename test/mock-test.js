@@ -362,6 +362,15 @@ function call(port, method, p, body) {
   r = await call(port, 'GET', '/api/state');
   assert.deepStrictEqual(r.json.layout.screens.map((x) => x.key + ':' + x.on), ['clock:true', 'hb:Woonkamer:false', 'hb:Overig:true'], 'opgeslagen volgorde, nieuwe kamers erachter');
   assert.strictEqual((await call(port, 'POST', '/api/layout', { theme: 'roze' })).status, 400);
+  // Weergave los van het thema
+  assert.strictEqual(r.json.layout.mode, 'light', 'standaard licht');
+  assert.strictEqual((await call(port, 'POST', '/api/layout', { mode: 'auto', darkFrom: '22:30', darkTo: '06:45' })).status, 200);
+  assert.strictEqual((await call(port, 'POST', '/api/layout', { mode: 'schemer' })).status, 400);
+  assert.strictEqual((await call(port, 'POST', '/api/layout', { darkFrom: '25:00' })).status, 400);
+  assert.strictEqual((await call(port, 'POST', '/api/layout', { darkFrom: '08:00', darkTo: '08:00' })).status, 400);
+  r = await call(port, 'GET', '/api/state');
+  assert.deepStrictEqual([r.json.layout.mode, r.json.layout.darkFrom, r.json.layout.darkTo], ['auto', '22:30', '06:45'], 'weergave bewaard');
+  await call(port, 'POST', '/api/layout', { mode: 'light', darkFrom: '21:00', darkTo: '07:00' });
   assert.strictEqual((await call(port, 'POST', '/api/layout', { theme: 'eigen' })).status, 400, 'eigen foto vereist een upload');
   assert.strictEqual((await call(port, 'POST', '/api/layout', { theme: 'nacht' })).status, 200);
   const jpg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(3000, 7)]);

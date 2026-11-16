@@ -95,6 +95,12 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
 .sw-nacht { background: #06070a; }
 .sw-nacht i { background: rgba(183,165,139,.2); } .sw-nacht b { background: rgba(214,150,70,.72); }
 .sw-eigen { background-color: rgba(255,255,255,.1); }
+.seg { display: table; width: 100%; table-layout: fixed; margin-top: 6px; border-radius: 14px; background: rgba(255,255,255,.08); padding: 3px; -webkit-box-sizing: border-box; box-sizing: border-box; }
+.seg div { display: table-cell; height: 44px; line-height: 44px; text-align: center; border-radius: 11px; font-size: 15px; font-weight: 600; color: rgba(244,240,230,.8); cursor: pointer; }
+.seg div.is-on { background: #f6d98f; color: #2b2210; }
+.times { overflow: hidden; }
+.times > div { float: left; width: 48%; } .times > div + div { float: right; }
+.hint { font-size: 13px; line-height: 18px; color: rgba(244,240,230,.6); margin-top: 8px; }
 .sw-eigen.leeg:after { content: "+"; position: absolute; left: 0; right: 0; top: 18px; text-align: center; font-size: 30px; font-weight: 200; color: rgba(255,255,255,.6); }
 .sw-eigen.leeg i, .sw-eigen.leeg b { display: none; }
 #file { position: absolute; left: -9999px; width: 1px; height: 1px; }
@@ -148,6 +154,13 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
         <h2>Uiterlijk</h2>
       </div>
       <div class="themes" id="themes"></div>
+      <label>Weergave</label>
+      <div class="seg" id="modes"><div data-m="light">Licht</div><div data-m="dark">Donker</div><div data-m="auto">Automatisch</div></div>
+      <div class="times" id="times" style="display:none">
+        <div><label for="t-from">Donker vanaf</label><input type="time" id="t-from" value="21:00"></div>
+        <div><label for="t-to">Licht vanaf</label><input type="time" id="t-to" value="07:00"></div>
+      </div>
+      <div class="hint" id="mode-hint"></div>
       <input type="file" id="file" accept="image/*">
       <div class="btnrow"><button id="b-photo">Eigen foto kiezen</button><button id="b-photo-del" class="secondary" style="display:none">Foto verwijderen</button></div>
       <div class="msg" id="m-look"></div>
@@ -344,7 +357,39 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
   };
   /* ----------------------------------------------------- uiterlijk */
   var THEMES = [['warm', 'Warm'], ['oceaan', 'Oceaan'], ['donker', 'Donker'], ['nacht', 'Nacht'], ['eigen', 'Eigen foto']];
-  var look = { theme: 'warm', bg: 0 };
+  var look = { theme: 'warm', bg: 0, mode: 'light', darkFrom: '21:00', darkTo: '07:00' };
+  var MODE_NAMES = { light: 'Licht', dark: 'Donker', auto: 'Automatisch' };
+  function drawModes() {
+    var kids = $('modes').children, i;
+    for (i = 0; i < kids.length; i++) { kids[i].className = kids[i].getAttribute('data-m') === look.mode ? 'is-on' : ''; }
+    $('times').style.display = look.mode === 'auto' ? '' : 'none';
+    $('t-from').value = look.darkFrom; $('t-to').value = look.darkTo;
+    $('mode-hint').textContent = look.theme === 'donker' || look.theme === 'nacht'
+      ? 'Het thema ' + (look.theme === 'donker' ? 'Donker' : 'Nacht') + ' is altijd donker; de weergave verandert daar niets aan.'
+      : (look.mode === 'auto' ? 'Het paneel wisselt vanzelf op deze tijden.' : '');
+  }
+  function saveMode(body, msg) {
+    call2('api/layout', body, function (r) {
+      if (!r.ok) { show($('m-look'), r, ''); drawModes(); return; }
+      $('m-look').className = 'msg ok'; $('m-look').textContent = msg;
+    });
+  }
+  (function () {
+    var kids = $('modes').children, i;
+    for (i = 0; i < kids.length; i++) {
+      kids[i].onclick = function () {
+        look.mode = this.getAttribute('data-m'); drawModes();
+        saveMode({ mode: look.mode }, 'Weergave ' + MODE_NAMES[look.mode] + ' staat aan.');
+      };
+    }
+    function times() {
+      var f = $('t-from').value, t = $('t-to').value;
+      if (!/^\d\d:\d\d$/.test(f) || !/^\d\d:\d\d$/.test(t)) { return; }
+      look.darkFrom = f; look.darkTo = t;
+      saveMode({ darkFrom: f, darkTo: t }, 'Donker van ' + f + ' tot ' + t + '.');
+    }
+    $('t-from').onchange = times; $('t-to').onchange = times;
+  }());
   function drawThemes() {
     var box = $('themes');
     box.innerHTML = '';
@@ -358,7 +403,7 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
         if (t[0] === 'eigen' && !look.bg) { $('file').click(); return; }
         call2('api/layout', { theme: t[0] }, function (r) {
           if (!r.ok) { show($('m-look'), r, ''); return; }
-          look.theme = t[0]; drawThemes(); $('m-look').className = 'msg ok'; $('m-look').textContent = 'Thema ' + t[1] + ' staat aan.';
+          look.theme = t[0]; drawThemes(); drawModes(); $('m-look').className = 'msg ok'; $('m-look').textContent = 'Thema ' + t[1] + ' staat aan.';
         });
       };
       box.appendChild(d);
@@ -446,6 +491,8 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
     call2('api/state?t=' + Date.now(), null, function (d) {
       if (!d.ok || !d.layout) { $('screens').textContent = 'Kon de schermen niet laden.'; return; }
       look.theme = d.layout.theme; look.bg = d.bg || 0;
+      look.mode = d.layout.mode || 'light'; look.darkFrom = d.layout.darkFrom || '21:00'; look.darkTo = d.layout.darkTo || '07:00';
+      drawModes();
       screens = d.layout.screens || [];
       drawThemes(); drawScreens();
     });

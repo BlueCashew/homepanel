@@ -15,6 +15,13 @@
   function $(id) { return document.getElementById(id); }
   function el(tag, cls, html) { var e = document.createElement(tag); if (cls) { e.className = cls; } if (html) { e.innerHTML = html; } return e; }
   function txt(e, t) { e.textContent = t; return e; }
+  function isDark(l) {
+    var now = new Date(), n = now.getHours() * 60 + now.getMinutes(), a, b;
+    function m(x) { var p = String(x || '').split(':'); return Number(p[0]) * 60 + Number(p[1]); }
+    if (!l || l.mode !== 'auto') { return !!(l && l.mode === 'dark'); }
+    a = m(l.darkFrom); b = m(l.darkTo);
+    return a < b ? (n >= a && n < b) : (n >= a || n < b);
+  }
   function backUrl() { return /terug=paneel/.test(window.location.search) ? './' : 'setup'; }
 
   function svg(inner) { return '<svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">' + inner + '</svg>'; }
@@ -262,7 +269,7 @@
       state = d;
       (d.rooms || []).forEach(function (r) { r.tiles.forEach(function (t) { if (!tileById[t.id]) { tileById[t.id] = t; } }); });
       tiles = JSON.parse(JSON.stringify((d.layout && d.layout.home) || []));
-      document.body.className = 'theme-' + ((d.layout && d.layout.theme) || 'warm');
+      document.body.className = 'theme-' + ((d.layout && d.layout.theme) || 'warm') + (isDark(d.layout) ? ' mode-dark' : '');
       if (d.layout && d.layout.theme === 'eigen' && d.bg) { $('bgimg').style.backgroundImage = 'url("bg?v=' + d.bg + '")'; }
       draw();
     });
