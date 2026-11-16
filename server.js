@@ -1161,7 +1161,7 @@ function atvStart() {
   p.on('error', (e) => { atv.error = e.message; });
   p.on('exit', (code) => {
     if (atv.proc !== p) return;
-    atv.proc = null; atv.state = { connected: false };
+    atv.proc = null; atv.state = { connected: false }; atv.pair = null;
     if (p.__fail) p.__fail(new Error('De Apple TV-koppeling is gestopt'));
     Object.keys(atv.wait).forEach((k) => { atv.wait[k].reject(new Error('De Apple TV-koppeling is gestopt')); delete atv.wait[k]; });
     if (code) console.log('[atv] hulpproces gestopt (' + code + '): ' + atv.log.slice(-3).join(' | '));
@@ -1274,18 +1274,41 @@ async function atvSetup(b) {
   if (b.atv === 'pair') {
     if (typeof b.device !== 'string' || !b.device) throw new Error('Kies een Apple TV');
     atv.pair = { device: b.device, name: String(b.name || 'Apple TV').slice(0, 80), step: 'companion' };
-    await atvCall('pair_begin', { device: b.device, protocol: 'companion' }, 30000);
+    try {
+      await atvCall('pair_begin', { device: b.device, protocol: 'companion' }, 30000);
+    } catch (e) {
+      atv.pair = null;
+      console.log('[atv] koppelen starten mislukt: ' + e.message);
+      throw e;
+    }
     return;
   }
   if (b.atv === 'pin') {
     const pr = atv.pair;
     if (!pr) throw new Error('Begin eerst met koppelen');
     if (!/^\d{4}$/.test(String(b.pin || '').trim())) throw new Error('Vul de 4 cijfers in die op de tv staan');
-    await atvCall('pair_finish', { pin: String(b.pin).trim() }, 30000);
+    /* Eén code tegelijk: twee keer dezelfde code tegelijk insturen breekt de koppeling. */
+    if (pr.busy) throw new Error('Even geduld, de code wordt al gecontroleerd');
+    pr.busy = true;
+    try {
+      await atvCall('pair_finish', { pin: String(b.pin).trim() }, 30000);
+    } catch (e) {
+      console.log('[atv] koppelen (' + pr.step + ') mislukt: ' + e.message);
+      /* De Apple TV accepteert na een fout geen tweede poging met dezelfde koppeling: meteen een nieuwe starten. */
+      try {
+        await atvCall('pair_begin', { device: pr.device, protocol: pr.step }, 30000);
+      } catch (e2) {
+        atv.pair = null;
+        throw new Error('Koppelen mislukt (' + e.message + '). Begin opnieuw met Zoek Apple TV.');
+      }
+      throw new Error('De code klopte niet of was verlopen. Er staat nu een nieuwe code op de tv.');
+    } finally {
+      pr.busy = false;
+    }
     if (pr.step === 'companion') {
       /* Tweede stap: AirPlay, voor wat er speelt en de afbeelding. Lukt dat niet, dan werkt de bediening toch. */
       pr.step = 'airplay';
-      try { await atvCall('pair_begin', { device: pr.device, protocol: 'airplay' }, 30000); return; } catch (e) { /* zonder AirPlay verder */ }
+      try { await atvCall('pair_begin', { device: pr.device, protocol: 'airplay' }, 30000); return; } catch (e) { console.log('[atv] AirPlay-koppeling overgeslagen: ' + e.message); }
     }
     atv.pair = null;
     config.atv.id = pr.device; config.atv.name = pr.name; saveConfig();

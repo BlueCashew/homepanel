@@ -407,7 +407,7 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
       pill('pill-atv', 'warn', 'Koppelen');
       st.textContent = 'Koppelen met ' + a.pairing.name + '.';
       $('atv-pin-text').textContent = a.pairing.step === 'companion'
-        ? 'Op je tv staat nu een code van 4 cijfers. Vul die hieronder in.'
+        ? 'Op je tv staat nu een code van 4 cijfers. Vul die hieronder in; bij het vierde cijfer gaat hij vanzelf. (De tv gaat hiervoor aan, dus een Sonos-soundbar schakelt mogelijk naar het tv-geluid.)'
         : 'Nog een tweede code: daarmee ziet het paneel wat er speelt. Wacht tot de nieuwe code op de tv staat.';
       $('atv-b-skip').style.display = a.pairing.step === 'airplay' ? '' : 'none';
       $('atv-b-pin').style.width = a.pairing.step === 'airplay' ? '' : '100%';
@@ -425,6 +425,7 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
   function atvPost(body, wait, cb) {
     $('m-atv').className = 'msg wait'; $('m-atv').textContent = wait;
     call('POST', body, function (d) {
+      if (body.atv === 'pin') { atvBusy = false; $('atv-b-pin').disabled = false; $('atv-code').value = ''; $('atv-code').removeAttribute('data-sent'); }
       if (!d.ok) { show($('m-atv'), d, ''); if (d.atv) { showAtv(d.atv); } return; }
       $('m-atv').className = 'msg'; $('m-atv').textContent = '';
       if (d.atv) { showAtv(d.atv); }
@@ -452,9 +453,11 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
       });
     });
   };
+  var atvBusy = false;
   $('atv-b-pin').onclick = function () {
+    if (atvBusy) { return; }
+    atvBusy = true; $('atv-b-pin').disabled = true; $('atv-code').blur();
     atvPost({ atv: 'pin', pin: $('atv-code').value }, 'Code controleren…', function (d) {
-      $('atv-code').value = ''; $('atv-code').removeAttribute('data-sent');
       if (d.atv && !d.atv.pairing) { $('m-atv').className = 'msg ok'; $('m-atv').textContent = 'Gekoppeld. Op het paneel staat nu een Apple TV-scherm, rechts van het beginscherm.'; setTimeout(status, 4000); }
     });
   };

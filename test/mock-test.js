@@ -465,7 +465,13 @@ function call(port, method, p, body) {
   r = await call(port, 'POST', '/api/setup', { atv: 'pair', device: 'ATV1', name: 'Woonkamer' });
   assert.strictEqual(r.json.atv.pairing.step, 'companion');
   assert.strictEqual((await call(port, 'POST', '/api/setup', { atv: 'pin', pin: '12a4' })).status, 400, 'alleen 4 cijfers');
-  assert.strictEqual((await call(port, 'POST', '/api/setup', { atv: 'pin', pin: '0000' })).status, 400, 'verkeerde code');
+  r = await call(port, 'POST', '/api/setup', { atv: 'pin', pin: '0000' });
+  assert.strictEqual(r.status, 400, 'verkeerde code'); assert.ok(/nieuwe code/.test(r.json.error), 'na een fout start meteen een nieuwe koppeling');
+  r = await call(port, 'GET', '/api/setup');
+  assert.strictEqual(r.json.atv.pairing.step, 'companion', 'koppeling loopt nog');
+  const twee = await Promise.all([call(port, 'POST', '/api/setup', { atv: 'pin', pin: '1234' }), call(port, 'POST', '/api/setup', { atv: 'pin', pin: '1234' })]);
+  assert.deepStrictEqual(twee.map((x) => x.status).sort(), [200, 400], 'tweede gelijktijdige code wordt geweigerd');
+  r = await call(port, 'POST', '/api/setup', { atv: 'cancel' });
   r = await call(port, 'POST', '/api/setup', { atv: 'pair', device: 'ATV1', name: 'Woonkamer' });
   r = await call(port, 'POST', '/api/setup', { atv: 'pin', pin: '1234' });
   assert.strictEqual(r.json.atv.pairing.step, 'airplay', 'tweede code voor AirPlay');

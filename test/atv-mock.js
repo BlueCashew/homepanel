@@ -13,7 +13,7 @@ process.stdin.on('data', (d) => {
     const err = (e) => send({ id: m.id, ok: false, error: e });
     if (m.cmd === 'scan') ok([{ id: 'ATV1', name: 'Woonkamer', address: '10.0.0.9', model: 'Apple TV 4K', paired: { companion: false, airplay: false } }]);
     else if (m.cmd === 'pair_begin') { pairing = m.protocol; ok({ pin: true }); }
-    else if (m.cmd === 'pair_finish') { if (m.pin === '0000') err('Koppelen mislukt'); else { pairing = null; ok({ paired: true }); } }
+    else if (m.cmd === 'pair_finish') setTimeout(() => { if (m.pin === '0000') err('Koppelen mislukt'); else { pairing = null; ok({ paired: true }); } }, 300);
     else if (m.cmd === 'connect') { connected = m.device === 'ATV1'; if (connected) { ok({}); state(); } else err('Apple TV niet gevonden'); }
     else if (m.cmd === 'key') { keys.push(m.key); ok({}); state(); }
     else if (m.cmd === 'launch') { keys.push('launch:' + m.app); ok({}); state(); }

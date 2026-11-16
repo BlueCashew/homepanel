@@ -221,7 +221,12 @@ class Bridge(PushListener, PowerListener, DeviceListener):
                 raise RuntimeError("Onbekende opdracht")
             send({"id": rid, "ok": True, "result": await fn(msg)})
         except Exception as e:  # elke fout netjes terug naar het paneel
-            send({"id": rid, "ok": False, "error": str(e) or e.__class__.__name__})
+            detail = str(e) or e.__class__.__name__
+            if e.__cause__ and str(e.__cause__):
+                detail += ": " + str(e.__cause__)
+            sys.stderr.write("[atv] %s: %s\n" % (msg.get("cmd"), detail))
+            sys.stderr.flush()
+            send({"id": rid, "ok": False, "error": detail})
 
     async def run(self):
         await self.storage.load()
