@@ -70,7 +70,7 @@ De Hue Bridge gebruikt een eigen certificaat; het paneel controleert dat certifi
 
 Het paneel bedient een Apple TV rechtstreeks, zonder Homebridge, via [pyatv](https://pyatv.dev). Op `/setup` staat de kaart **Apple TV**:
 
-1. **Onderdelen installeren** zet pyatv in een eigen Python-omgeving in `data/pyatv` (op een Pi Zero 2 duurt dat een paar minuten). Nodig: Python 3 met `venv`, een 64-bit systeem.
+1. **Onderdelen installeren** zet pyatv (met srptools 1.x; versie 2 breekt het koppelen) in een eigen Python-omgeving in `data/pyatv` (op een Pi Zero 2 duurt dat een paar minuten). Nodig: Python 3 met `venv`, een 64-bit systeem.
 2. **Zoek Apple TV** en daarna **Koppel**. Op de tv verschijnt een code van 4 cijfers; vul die in.
 3. Daarna volgt een tweede code (AirPlay). Daarmee ziet het paneel wat er speelt, met afbeelding. **Overslaan** kan: de bediening werkt dan wel, alleen "nu speelt" niet.
 

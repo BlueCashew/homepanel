@@ -1241,13 +1241,14 @@ async function atvDo(b) {
   throw new Error('Onbekende opdracht');
 }
 
-/* Installeren van pyatv vanuit de instellingen: duurt op een Pi Zero een paar minuten. */
+/* Installeren van pyatv vanuit de instellingen: duurt op een Pi Zero een paar minuten.
+   srptools 2 werkt niet met pyatv 0.18 (koppelen mislukt), daarom vast op versie 1. */
 function atvInstall() {
   if (atv.install && atv.install.busy) return;
   const venv = path.join(ATV_DIR, 'pyatv');
   fs.mkdirSync(ATV_DIR, { recursive: true });
   atv.install = { busy: true, ok: false, line: 'Omgeving aanmaken…', error: null };
-  const sh = 'python3 -m venv "' + venv + '" && "' + venv + '/bin/pip" install --no-cache-dir --prefer-binary pyatv';
+  const sh = 'python3 -m venv "' + venv + '" && "' + venv + '/bin/pip" install --no-cache-dir --prefer-binary pyatv "srptools<2"';
   const p = childProcess.spawn('sh', ['-c', sh], { stdio: ['ignore', 'pipe', 'pipe'] });
   const onData = (d) => {
     const lines = String(d).split('\n').map((l) => l.trim()).filter(Boolean);
