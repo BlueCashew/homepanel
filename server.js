@@ -845,17 +845,19 @@ function bgVersion() {
 /* Controleert een indeling: binnen het raster, niets over elkaar heen, alleen bekende soorten tegels. */
 function cleanHome(tiles) {
   if (!Array.isArray(tiles)) throw new Error('Ongeldige indeling');
+  // Rijen werken in halve stappen: scènes kunnen een halve tegel hoog zijn.
   const used = {};
   const out = [];
-  tiles.slice(0, GRID.cols * GRID.rows).forEach((t) => {
+  tiles.slice(0, GRID.cols * GRID.rows * 2).forEach((t) => {
     if (!t || ['device', 'clock', 'weather', 'nowplaying'].indexOf(t.type) === -1) return;
-    const w = t.w === 2 ? 2 : 1, h = t.h === 2 ? 2 : 1;
-    const x = Math.floor(Number(t.x)), y = Math.floor(Number(t.y));
-    if (!(x >= 0 && y >= 0 && x + w <= GRID.cols && y + h <= GRID.rows)) return;
+    const w = t.w === 2 ? 2 : 1;
+    const h = t.h === 2 ? 2 : (t.h === 0.5 && t.type === 'device' ? 0.5 : 1);
+    const x = Math.floor(Number(t.x)), y2 = Math.floor(Number(t.y) * 2), h2 = h * 2;
+    if (!(x >= 0 && y2 >= 0 && x + w <= GRID.cols && y2 + h2 <= GRID.rows * 2)) return;
     if (t.type === 'device' && (typeof t.ref !== 'string' || !t.ref || t.ref.length > 200)) return;
-    for (let i = x; i < x + w; i++) for (let j = y; j < y + h; j++) if (used[i + ',' + j]) return;
-    for (let i = x; i < x + w; i++) for (let j = y; j < y + h; j++) used[i + ',' + j] = true;
-    const c = { type: t.type, x, y, w, h };
+    for (let i = x; i < x + w; i++) for (let j = y2; j < y2 + h2; j++) if (used[i + ',' + j]) return;
+    for (let i = x; i < x + w; i++) for (let j = y2; j < y2 + h2; j++) used[i + ',' + j] = true;
+    const c = { type: t.type, x, y: y2 / 2, w, h };
     if (t.type === 'device') c.ref = t.ref;
     if (t.type === 'clock') c.variant = t.variant === 'digital' ? 'digital' : 'analog';
     out.push(c);
@@ -886,7 +888,15 @@ function defaultHome(rooms) {
   tiles.push({ type: 'nowplaying', x: 2, y: 1, w: 2, h: 1 });
   const picks = all.filter((t) => t !== thermo && !t.readonly && (t.name === 'Alle lampen' || t.kind === 'switch' || t.kind === 'scene'));
   const seen = {};
-  picks.filter((t) => !seen[t.id] && (seen[t.id] = true)).slice(0, 4).forEach((t, i) => tiles.push({ type: 'device', ref: t.id, x: i, y: 2, w: 1, h: 1 }));
+  const uniq = picks.filter((t) => !seen[t.id] && (seen[t.id] = true));
+  // Gewone tegels eerst, scènes daarna als halve tegels (twee per vak).
+  let col = 0, half = 0;
+  uniq.filter((t) => t.kind !== 'scene').slice(0, uniq.some((t) => t.kind === 'scene') ? 2 : 4).forEach((t) => tiles.push({ type: 'device', ref: t.id, x: col++, y: 2, w: 1, h: 1 }));
+  uniq.filter((t) => t.kind === 'scene').forEach((t) => {
+    if (col >= GRID.cols) return;
+    tiles.push({ type: 'device', ref: t.id, x: col, y: 2 + half * 0.5, w: 1, h: 0.5 });
+    if (half) { col++; half = 0; } else half = 1;
+  });
   return tiles;
 }
 
@@ -1182,6 +1192,8 @@ const demo = {
     { name: 'Woonkamer', tiles: [
       { id: 'd1', name: 'Staande lamp', type: 'Lightbulb', kind: 'light', on: true, level: 60, levelChar: 'Brightness', char: 'On', onValue: true, offValue: false, ctChar: 'ct', ct: 30 },
       { id: 'd11', name: 'Avond', type: 'HueScene', kind: 'scene', on: false, char: 'recall', onValue: true, offValue: true },
+      { id: 'd12', name: 'Film kijken', type: 'HueScene', kind: 'scene', on: false, char: 'recall', onValue: true, offValue: true },
+      { id: 'd13', name: 'Helder', type: 'HueScene', kind: 'scene', on: false, char: 'recall', onValue: true, offValue: true },
       { id: 'd2', name: 'Eettafel', type: 'Lightbulb', kind: 'light', on: true, level: 85, levelChar: 'Brightness', char: 'On', onValue: true, offValue: false },
       { id: 'd3', name: 'Leeslamp', type: 'Lightbulb', kind: 'light', on: false, level: 40, levelChar: 'Brightness', char: 'On', onValue: true, offValue: false },
       { id: 'd4', name: 'Art Frame', type: 'Switch', kind: 'switch', on: true, char: 'On', onValue: true, offValue: false },

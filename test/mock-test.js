@@ -339,6 +339,25 @@ function call(port, method, p, body) {
   r = await call(port, 'GET', '/api/state');
   assert.deepStrictEqual(r.json.layout.home, [{ type: 'clock', x: 0, y: 0, w: 2, h: 2, variant: 'digital' }, { type: 'device', x: 2, y: 0, w: 2, h: 1, ref: 'a1' }], 'alleen geldige tegels');
   assert.strictEqual(r.json.layout.custom, true);
+  // Halve tegels: twee scènes in één vak, een derde overlapt, een halve klok wordt heel.
+  r = await call(port, 'POST', '/api/layout', { home: [
+    { type: 'device', ref: 's1', x: 0, y: 2, w: 1, h: 0.5 },
+    { type: 'device', ref: 's2', x: 0, y: 2.5, w: 1, h: 0.5 },
+    { type: 'device', ref: 's3', x: 0, y: 2.5, w: 1, h: 0.5 },   // overlapt s2
+    { type: 'device', ref: 's4', x: 1, y: 2.5, w: 1, h: 1 },     // valt half buiten het raster
+    { type: 'clock', x: 2, y: 0, w: 1, h: 0.5 },                 // alleen apparaten mogen half
+  ] });
+  assert.strictEqual(r.status, 200);
+  r = await call(port, 'GET', '/api/state');
+  assert.deepStrictEqual(r.json.layout.home, [
+    { type: 'device', x: 0, y: 2, w: 1, h: 0.5, ref: 's1' },
+    { type: 'device', x: 0, y: 2.5, w: 1, h: 0.5, ref: 's2' },
+    { type: 'clock', x: 2, y: 0, w: 1, h: 1, variant: 'analog' },
+  ], 'halve tegels');
+  await call(port, 'POST', '/api/layout', { home: [
+    { type: 'clock', variant: 'digital', x: 0, y: 0, w: 2, h: 2 },
+    { type: 'device', ref: 'a1', x: 2, y: 0, w: 2, h: 1 },
+  ] });
   r = await call(port, 'POST', '/api/layout', { screens: [{ key: 'clock', on: true }, { key: 'hb:Woonkamer', on: false }, { key: 'clock', on: false }] });
   r = await call(port, 'GET', '/api/state');
   assert.deepStrictEqual(r.json.layout.screens.map((x) => x.key + ':' + x.on), ['clock:true', 'hb:Woonkamer:false', 'hb:Overig:true'], 'opgeslagen volgorde, nieuwe kamers erachter');

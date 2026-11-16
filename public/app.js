@@ -288,9 +288,9 @@
     onTap(e, function () { tapDevice(id); }, function () { holdDevice(id); });
     bound.push({ el: e, paint: function () {
       var t = tileById[id], s, k;
-      if (!t) { e.className = 'tile t-missing s-' + size; setText(e.children[1], 'Niet gevonden'); setText(e.children[2], 'Pas het beginscherm aan'); return; }
+      if (!t) { e.className = 'tile t-missing s-' + size + (e.getAttribute('data-end') ? ' endrow' : ''); setText(e.children[1], 'Niet gevonden'); setText(e.children[2], 'Pas het beginscherm aan'); return; }
       s = shown(t);
-      e.className = 'tile s-' + size + ' k-' + t.kind + (s.on ? ' is-on' : '') + (t.fault && !pending[t.id] ? ' is-fault' : '');
+      e.className = 'tile s-' + size + ' k-' + t.kind + (s.on ? ' is-on' : '') + (t.fault && !pending[t.id] ? ' is-fault' : '') + (e.getAttribute('data-end') ? ' endrow' : '');
       k = t.type === 'HueGroup' ? 'group' : t.kind;
       if (k !== iconKind) { iconKind = k; e.children[0].innerHTML = iconFor(t); }
       setText(e.children[1], t.name === 'Alle lampen' && !inRoom && t.room ? t.room : t.name);
@@ -402,7 +402,7 @@
   function cellPx(size) {
     var g = grid(), w = W(), h = window.innerHeight;
     var cw = (w - 56 - GAP * (g.cols - 1)) / g.cols, ch = (h - 28 - 60 - GAP * (g.rows - 1)) / g.rows;
-    var sw = size ? Number(size.charAt(0)) : 1, sh = size ? Number(size.charAt(2)) : 1;
+    var sw = size ? Number(size.charAt(0)) : 1, sh = size ? (size.charAt(2) === 'h' ? 0.5 : Number(size.charAt(2))) : 1;
     return { w: cw * sw + GAP * (sw - 1), h: ch * sh + GAP * (sh - 1), cw: cw, ch: ch };
   }
   function buildHome() {
@@ -410,7 +410,7 @@
     var tiles = (state.layout && state.layout.home) || [];
     var c = cellPx('1x1');
     tiles.forEach(function (t) {
-      var size = t.w + 'x' + t.h, e, dev, p = cellPx(size);
+      var size = t.w + 'x' + (t.h === 0.5 ? 'h' : t.h), e, dev, p = cellPx(size);
       if (t.type === 'clock') { e = makeClock(t.variant, size); }
       else if (t.type === 'weather') { e = makeWeather(size); }
       else if (t.type === 'nowplaying') { e = makeNowPlaying(size); }
@@ -442,8 +442,19 @@
       r.tiles.forEach(function (t) { if (t.kind === 'light' && t.type !== 'HueGroup' && shown(t).on) { on++; } });
       setText(f.children[1], on ? on + (on === 1 ? ' lamp aan' : ' lampen aan') : 'Alles uit');
     } });
+    /* Scènes bovenaan als rij halve knoppen, daarna de rest. */
+    var box = f.children[2], n = 0, scenes = room.tiles.filter(function (t) { return t.kind === 'scene'; });
+    scenes.forEach(function (t, i) {
+      var e = makeDevice(t.id, '1xh', true);
+      if (i % 5 === 4) { e.className += ' endrow'; e.setAttribute('data-end', '1'); }
+      box.appendChild(e);
+    });
+    if (scenes.length) { box.appendChild(el('div', 'rowbreak')); }
     room.tiles.forEach(function (t) {
-      f.children[2].appendChild(t.kind === 'climate' && t.stepper ? makeThermo(t.id, '1x1') : makeDevice(t.id, '1x1', true));
+      if (t.kind === 'scene') { return; }
+      var e = t.kind === 'climate' && t.stepper ? makeThermo(t.id, '1x1') : makeDevice(t.id, '1x1', true);
+      if (n++ % 5 === 4) { e.className += ' endrow'; e.setAttribute('data-end', '1'); }
+      box.appendChild(e);
     });
     return f;
   }

@@ -75,14 +75,15 @@
     tiles.forEach(function (t, i) {
       var x, y;
       if (i === skip || i === skip2) { return; }
-      for (x = t.x; x < t.x + t.w; x++) { for (y = t.y; y < t.y + t.h; y++) { o[x + ',' + y] = i; } }
+      /* Rijen tellen in halve stappen (scènes kunnen een halve tegel zijn). */
+      for (x = t.x; x < t.x + t.w; x++) { for (y = t.y * 2; y < (t.y + t.h) * 2; y++) { o[x + ',' + y] = i; } }
     });
     return o;
   }
   function fits(x, y, w, h, skip, skip2) {
     var g = grid(), o = occupied(skip, skip2), i, j;
     if (x < 0 || y < 0 || x + w > g.cols || y + h > g.rows) { return false; }
-    for (i = x; i < x + w; i++) { for (j = y; j < y + h; j++) { if (o[i + ',' + j] !== undefined) { return false; } } }
+    for (i = x; i < x + w; i++) { for (j = y * 2; j < (y + h) * 2; j++) { if (o[i + ',' + j] !== undefined) { return false; } } }
     return true;
   }
 
@@ -94,41 +95,44 @@
     if (t.type === 'nowplaying') { return { name: 'Nu speelt', kind: 'Sonos', icon: ICON.nowplaying }; }
     d = tileById[t.ref];
     if (!d) { return { name: 'Niet gevonden', kind: 'Verwijder of vervang', icon: ICON.sensor, missing: true }; }
-    return { name: d.name === 'Alle lampen' ? d.room : d.name, kind: d.name === 'Alle lampen' ? 'Alle lampen' : (d.room || ''), icon: d.type === 'HueGroup' ? ICON.group : (ICON[d.kind] || ICON['switch']), on: d.on };
+    return { name: d.name === 'Alle lampen' ? d.room : d.name, kind: d.name === 'Alle lampen' ? 'Alle lampen' : (d.room || ''), icon: d.type === 'HueGroup' ? ICON.group : (ICON[d.kind] || ICON['switch']), on: d.on, scene: d.kind === 'scene' };
   }
   function draw() {
     var a = $('area'), g = grid(), G = geom(), x, y, o = occupied(-1);
     a.innerHTML = '';
-    for (y = 0; y < g.rows; y++) {
-      for (x = 0; x < g.cols; x++) {
+    for (x = 0; x < g.cols; x++) {
+      for (y = 0; y < g.rows * 2; y++) {
         if (o[x + ',' + y] !== undefined) { continue; }
-        (function (cx, cy) {
-          var c = el('div', 'cell' + (moving ? ' is-target' : ''));
+        /* Hele vrije vakken als één vak, losse halve vakken als half vak. */
+        var full = y % 2 === 0 && o[x + ',' + (y + 1)] === undefined;
+        (function (cx, cy, ch) {
+          var c = el('div', 'cell' + (ch === 0.5 ? ' is-half' : '') + (moving ? ' is-target' : ''));
           c.style.left = Math.round(G.left + cx * (G.cw + GAP)) + 'px';
           c.style.top = Math.round(G.top + cy * (G.ch + GAP)) + 'px';
           c.style.width = Math.round(G.cw) + 'px';
-          c.style.height = Math.round(G.ch) + 'px';
-          tap(c, function () { cellTap(cx, cy); });
+          c.style.height = Math.round(ch * (G.ch + GAP) - GAP) + 'px';
+          tap(c, function () { cellTap(cx, cy, ch); });
           a.appendChild(c);
-        }(x, y));
+        }(x, y / 2, full ? 1 : 0.5));
+        if (full) { y++; }
       }
     }
     tiles.forEach(function (t, i) {
-      var L = label(t), e = el('div', 'tile s-' + t.w + 'x' + t.h + (L.on ? ' is-on' : '') + (i === sel ? ' is-sel' : '') + (i === sel && moving ? ' is-moving' : ''),
-        '<div class="t-icon">' + L.icon + '</div><div class="t-name"></div><div class="ed-kind"></div><div class="ed-size">' + t.w + '×' + t.h + '</div>');
+      var L = label(t), e = el('div', 'tile s-' + t.w + 'x' + (t.h === 0.5 ? 'h' : t.h) + (L.scene ? ' k-scene' : '') + (L.on ? ' is-on' : '') + (i === sel ? ' is-sel' : '') + (i === sel && moving ? ' is-moving' : ''),
+        '<div class="t-icon">' + L.icon + '</div><div class="t-name"></div><div class="ed-kind"></div><div class="ed-size">' + sizeLabel(t.w, t.h) + '</div>');
       txt(e.children[1], L.name);
       txt(e.children[2], L.kind);
       e.style.left = Math.round(G.left + t.x * (G.cw + GAP)) + 'px';
       e.style.top = Math.round(G.top + t.y * (G.ch + GAP)) + 'px';
       e.style.width = Math.round(G.cw * t.w + GAP * (t.w - 1)) + 'px';
-      e.style.height = Math.round(G.ch * t.h + GAP * (t.h - 1)) + 'px';
+      e.style.height = Math.round(t.h * (G.ch + GAP) - GAP) + 'px';
       tap(e, function () { tileTap(i); });
       a.appendChild(e);
     });
     drawBar();
   }
   function drawBar() {
-    var b = $('bar'), t = tiles[sel], tools, sizes = [[1, 1], [2, 1], [1, 2], [2, 2]];
+    var b = $('bar'), t = tiles[sel], tools, sizes = isScene(t) ? [[1, 0.5], [2, 0.5], [1, 1], [2, 1]] : [[1, 1], [2, 1], [1, 2], [2, 2]];
     b.innerHTML = '';
     if (sel < 0 || !t) {
       b.appendChild(el('div', 'ed-msg', tiles.length ? 'Tik op een tegel om de grootte te kiezen, te verplaatsen of weg te halen.' : 'Het beginscherm is leeg. Tik op een vak om te beginnen.'));
@@ -145,7 +149,7 @@
     tools = el('div', 'ed-tools');
     sizes.forEach(function (s) {
       var ok = fits(t.x, t.y, s[0], s[1], sel), on = t.w === s[0] && t.h === s[1];
-      tools.appendChild(btn(s[0] + '×' + s[1], on ? 'is-on' : (ok ? '' : 'is-off'), function () {
+      tools.appendChild(btn(sizeLabel(s[0], s[1]), on ? 'is-on' : (ok ? '' : 'is-off'), function () {
         if (!ok || on) { if (!ok) { toast('Past hier niet; verplaats de tegel eerst of maak ruimte.'); } return; }
         t.w = s[0]; t.h = s[1]; dirty = true; draw();
       }));
@@ -157,6 +161,8 @@
     tools.appendChild(btn('Weghalen', 'danger', function () { tiles.splice(sel, 1); sel = -1; dirty = true; draw(); }));
     b.appendChild(tools);
   }
+  function sizeLabel(w, h) { return w + '×' + (h === 0.5 ? '½' : h); }
+  function isScene(t) { var d = t && t.type === 'device' && tileById[t.ref]; return !!(d && d.kind === 'scene'); }
   function btn(label2, cls, fn) { var e = el('div', 'ed-tool' + (cls ? ' ' + cls : '')); txt(e, label2); tap(e, fn); return e; }
 
   /* ------------------------------------------------------------ acties */
@@ -182,20 +188,24 @@
     sel = sel === i ? -1 : i;
     draw();
   }
-  function cellTap(x, y) {
-    var t = tiles[sel];
+  function cellTap(x, y, ch) {
+    var t = tiles[sel], small = isScene(t) ? 0.5 : 1;
     if (moving && t) {
       if (fits(x, y, t.w, t.h, sel)) { t.x = x; t.y = y; }
-      else if (fits(x, y, 1, 1, sel)) { t.x = x; t.y = y; t.w = 1; t.h = 1; toast('Te groot voor die plek; de tegel is nu 1×1.'); }
+      else if (fits(x, y, 1, small, sel)) { t.x = x; t.y = y; t.w = 1; t.h = small; toast('Te groot voor die plek; de tegel is nu ' + sizeLabel(1, small) + '.'); }
+      else { toast('Hier past alleen een scène (halve hoogte).'); }
       moving = false; dirty = true; draw();
       return;
     }
     sel = -1;
-    target = { x: x, y: y };
+    target = { x: x, y: y, half: ch === 0.5 };
     openPicker();
   }
   function place(item) {
     var x = target.x, y = target.y, w = 1, h = 1;
+    if (item.scene) { h = 0.5; }
+    else if (target.half) { toast('Hier past alleen een scène (halve hoogte).'); return; }
+    delete item.scene;
     if (item.type === 'nowplaying' || item.type === 'weather') { if (fits(x, y, 2, 1, -1)) { w = 2; } }
     if (item.big) { if (fits(x, y, 2, 2, -1)) { w = 2; h = 2; } else if (fits(x, y, 1, 2, -1)) { h = 2; } }
     item.x = x; item.y = y; item.w = w; item.h = h;
@@ -223,7 +233,7 @@
       r.tiles.forEach(function (d) {
         var ic = d.type === 'HueGroup' ? ICON.group : (ICON[d.kind] || ICON['switch']);
         var kindTxt = d.kind === 'scene' ? 'scène' : d.kind === 'climate' ? 'thermostaat' : (d.readonly ? 'sensor' : '');
-        item(list, ic, d.name, kindTxt, used[d.id], function () { place({ type: 'device', ref: d.id, big: d.kind === 'climate' && !!d.stepper }); });
+        item(list, ic, d.name, kindTxt, used[d.id], function () { place({ type: 'device', ref: d.id, big: d.kind === 'climate' && !!d.stepper, scene: d.kind === 'scene' }); });
       });
     });
     list.scrollTop = 0;
