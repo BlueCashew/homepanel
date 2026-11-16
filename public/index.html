@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<title>Huispaneel</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Huis">
+<meta name="format-detection" content="telephone=no">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="stage">
+  <div id="track">
+
+    <div class="face face-home">
+      <div class="home-left">
+        <div class="clock" id="h-time">--:--</div>
+        <div class="date" id="h-date"></div>
+        <div class="wx" id="h-wx">
+          <span class="wx-temp" id="h-wx-temp"></span>
+          <span class="wx-text" id="h-wx-text"></span>
+        </div>
+        <div class="np" id="h-np">
+          <div class="np-art" id="h-np-art"></div>
+          <div class="np-meta">
+            <div class="np-title" id="h-np-title"></div>
+            <div class="np-artist" id="h-np-artist"></div>
+          </div>
+          <div class="np-btn" id="h-np-toggle"></div>
+        </div>
+      </div>
+      <div class="home-right">
+        <div class="tabs" id="tabs"></div>
+        <div class="tiles" id="tiles"></div>
+        <div class="notice" id="notice"></div>
+      </div>
+    </div>
+
+    <div class="face face-music">
+      <div class="m-art" id="m-art"></div>
+      <div class="m-side">
+        <div class="m-room" id="m-room"></div>
+        <div class="m-title" id="m-title"></div>
+        <div class="m-artist" id="m-artist"></div>
+        <div class="m-ctrl">
+          <div class="m-btn" id="m-prev"></div>
+          <div class="m-btn m-play" id="m-toggle"></div>
+          <div class="m-btn" id="m-next"></div>
+        </div>
+        <div class="m-vol">
+          <div class="m-mute" id="m-mute"></div>
+          <div class="slider" id="m-slider"><div class="slider-fill"></div><div class="slider-knob"></div></div>
+          <div class="m-volnum" id="m-volnum"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="face face-clock">
+      <div class="c-time" id="c-time">--:--</div>
+      <div class="c-date" id="c-date"></div>
+      <div class="c-wx" id="c-wx"></div>
+    </div>
+
+  </div>
+</div>
+
+<div id="dots"></div>
+<div id="offline">Geen verbinding met het paneel</div>
+
+<div id="sheet">
+  <div class="sheet-box">
+    <div class="sheet-title" id="sheet-title"></div>
+    <div class="sheet-value" id="sheet-value"></div>
+    <div class="slider slider-big" id="sheet-slider"><div class="slider-fill"></div><div class="slider-knob"></div></div>
+    <div class="sheet-sub">Kleurtemperatuur</div>
+    <div class="slider slider-big slider-ct" id="sheet-ct"><div class="slider-fill"></div><div class="slider-knob"></div></div>
+    <div class="stepper">
+      <div class="step-btn" id="step-minus">&minus;</div>
+      <div class="step-val" id="step-val"></div>
+      <div class="step-btn step-plus" id="step-plus">+</div>
+    </div>
+    <div class="sheet-row">
+      <div class="sheet-btn" id="sheet-no">Sluiten</div>
+      <div class="sheet-btn sheet-primary" id="sheet-yes"></div>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

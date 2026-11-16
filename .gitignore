@@ -1,0 +1,10 @@
+# Instellingen met wachtwoorden en sleutels blijven op de Pi
+config.json
+# Werkbestanden van de updater
+VERSION
+.update/
+.backup/
+.update-pending.json
+.update-rolledback
+node_modules/
+.DS_Store

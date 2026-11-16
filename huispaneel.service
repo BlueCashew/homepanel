@@ -1,0 +1,15 @@
+[Unit]
+Description=Huispaneel (dashboard voor Homebridge en Sonos)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# Pas User en de paden aan als je de map ergens anders neerzet. Werkt "node" bij jou op een ander pad, pas dat dan ook aan.
+User=pi
+WorkingDirectory=/home/pi/huispaneel
+ExecStart=/opt/homebridge/bin/node --max-old-space-size=64 /home/pi/huispaneel/start.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

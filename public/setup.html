@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<title>Huispaneel instellen</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body { margin: 0; padding: 32px 20px; background: #17233a; color: #f4f0e6; font-family: -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif; }
+.box { max-width: 460px; margin: 0 auto; }
+h1 { font-size: 28px; font-weight: 600; margin: 0 0 6px 0; }
+h2 { font-size: 18px; margin: 28px 0 4px 0; }
+p { font-size: 15px; line-height: 22px; color: rgba(244,240,230,.72); margin: 0 0 12px 0; }
+label { display: block; font-size: 14px; font-weight: 600; margin: 12px 0 4px 0; }
+input { display: block; width: 100%; box-sizing: border-box; -webkit-box-sizing: border-box; height: 46px; padding: 0 12px; border: 0; border-radius: 10px; font-size: 17px; background: #f4f0e6; color: #17233a; }
+button { margin-top: 16px; width: 100%; height: 50px; border: 0; border-radius: 12px; font-size: 17px; font-weight: 600; background: #f6d98f; color: #2b2210; }
+.msg { margin-top: 12px; font-size: 15px; line-height: 22px; min-height: 22px; }
+.ok { color: #a9e3cc; } .err { color: #ff9f8f; } .wait { color: #f6d98f; font-size: 18px; font-weight: 600; }
+button.secondary { background: rgba(255,255,255,.14); color: #f4f0e6; }
+a { color: #f6d98f; }
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>Huispaneel instellen</h1>
+  <p id="status">Status ophalen…</p>
+
+  <h2>Homebridge</h2>
+  <p>De login van de Homebridge-webinterface. Die wordt alleen op de Pi bewaard en alleen als Homebridge hem accepteert.</p>
+  <label for="u">Gebruikersnaam</label>
+  <input id="u" autocomplete="username" autocapitalize="none" autocorrect="off">
+  <label for="p">Wachtwoord</label>
+  <input id="p" type="password" autocomplete="current-password">
+  <button id="b1">Opslaan en testen</button>
+  <div class="msg" id="m1"></div>
+
+  <h2>Philips Hue</h2>
+  <p id="hue-status">Status ophalen…</p>
+  <p>Druk op <b>Koppel Hue</b> en druk daarna binnen een minuut op de ronde knop bovenop de Hue Bridge.</p>
+  <label for="hip">IP-adres van de bridge (leeg laten: het paneel zoekt zelf)</label>
+  <input id="hip" autocapitalize="none" autocorrect="off" placeholder="bijvoorbeeld 192.168.1.20">
+  <button id="b3">Koppel Hue</button>
+  <div class="msg" id="m3"></div>
+  <button id="b4" class="secondary" style="display:none">Hue ontkoppelen</button>
+
+  <h2>Bijwerken</h2>
+  <p id="upd-status">Status ophalen…</p>
+  <button id="b5">Bijwerken</button>
+  <div class="msg" id="m5"></div>
+  <label style="font-weight:400; margin-top:14px"><input type="checkbox" id="auto" style="display:inline-block; width:auto; height:auto; margin-right:8px">Elke nacht automatisch bijwerken (tussen 4 en 5 uur)</label>
+
+  <h2>Weer</h2>
+  <p>De plaats waarvoor het paneel het weer toont.</p>
+  <label for="pl">Plaats</label>
+  <input id="pl" autocorrect="off">
+  <button id="b2">Plaats opslaan</button>
+  <div class="msg" id="m2"></div>
+
+  <p style="margin-top:28px"><a href="./">Naar het paneel</a></p>
+</div>
+<script>
+(function () {
+  function $(id) { return document.getElementById(id); }
+  function call(method, body, cb) {
+    var x = new XMLHttpRequest();
+    x.open(method, 'api/setup', true);
+    x.onreadystatechange = function () {
+      var d = null;
+      if (x.readyState !== 4) { return; }
+      try { d = JSON.parse(x.responseText); } catch (e) { d = null; }
+      cb(d || { ok: false, error: 'Geen verbinding met het paneel' });
+    };
+    if (body) { x.setRequestHeader('Content-Type', 'application/json'); x.send(JSON.stringify(body)); } else { x.send(); }
+  }
+  function show(el, d, okText) { el.className = 'msg ' + (d.ok ? 'ok' : 'err'); el.textContent = d.ok ? okText : d.error; }
+  var hueTimer = null;
+  function showHue(u) {
+    var p = u && u.pairing, m3 = $('m3');
+    if (!u) { return; }
+    $('hue-status').textContent = u.paired ? ('Gekoppeld met ' + (u.name || 'Hue Bridge') + ' op ' + u.host + '.' + (u.ok ? '' : (u.error ? ' Maar: ' + u.error : ''))) : 'Hue is nog niet gekoppeld.';
+    $('b4').style.display = u.paired ? '' : 'none';
+    $('b3').textContent = u.paired ? 'Opnieuw koppelen' : 'Koppel Hue';
+    if (!$('hip').value && u.host) { $('hip').value = u.host; }
+    if (p && p.active) {
+      m3.className = 'msg wait';
+      m3.textContent = 'Druk nu op de ronde knop bovenop de Hue Bridge (' + (p.name || p.host) + '). Nog ' + p.secondsLeft + ' seconden.' + (p.error ? ' (' + p.error + ')' : '');
+      $('b3').disabled = true;
+      clearTimeout(hueTimer);
+      hueTimer = setTimeout(status, 1500);
+    } else {
+      $('b3').disabled = false;
+      if (p && p.done) { m3.className = 'msg ok'; m3.textContent = 'Gelukt. Het paneel bedient Hue nu rechtstreeks.'; }
+      else if (p && p.expired) { m3.className = 'msg err'; m3.textContent = 'Geen knopdruk gezien binnen een minuut. Probeer het opnieuw.'; }
+    }
+  }
+  var updTimer = null, updFrom = null, updWaiting = false;
+  function short(v) { return v && v.length > 12 ? v.slice(0, 7) : (v || '?'); }
+  function showUpd(u) {
+    var m5 = $('m5'), b5 = $('b5'), txt;
+    if (!u) {
+      if (updWaiting) { m5.className = 'msg wait'; m5.textContent = 'Het paneel herstart…'; clearTimeout(updTimer); updTimer = setTimeout(status, 2000); }
+      return;
+    }
+    if (updWaiting && updFrom && u.current !== updFrom && !u.busy) {
+      updWaiting = false; m5.className = 'msg ok'; m5.textContent = 'Bijgewerkt naar versie ' + short(u.current) + '.';
+    }
+    txt = 'Huidige versie: ' + short(u.current) + '.';
+    if (u.latest) { txt += u.available ? ' Nieuw: ' + short(u.latest.sha) + ' — ' + u.latest.message : ' Dit is de nieuwste versie.'; }
+    if (u.rolledBack) { txt += ' Let op: de update naar ' + short(u.rolledBack) + ' startte niet goed en is teruggedraaid.'; }
+    $('upd-status').textContent = txt;
+    $('auto').checked = !!u.auto;
+    b5.disabled = !!u.busy || updWaiting;
+    b5.textContent = u.available ? 'Bijwerken' : 'Opnieuw zoeken naar updates';
+    if (u.busy) {
+      m5.className = 'msg wait'; m5.textContent = (u.step || 'Bezig') + '…';
+      updWaiting = true; if (!updFrom) { updFrom = u.current; }
+      clearTimeout(updTimer); updTimer = setTimeout(status, 1500);
+    } else if (u.error) { m5.className = 'msg err'; m5.textContent = u.error; updWaiting = false; }
+    else if (u.done && !updWaiting) { m5.className = 'msg ok'; m5.textContent = u.done; }
+    else if (updWaiting) { clearTimeout(updTimer); updTimer = setTimeout(status, 2000); }
+  }
+  function status() {
+    call('GET', null, function (d) {
+      var h = d.homebridge || {};
+      if (!d.ok && updWaiting) { showUpd(null); return; }
+      showUpd(d.update);
+      showHue(d.hue);
+      $('status').textContent = !d.ok ? d.error : (h.ok ? 'Homebridge is gekoppeld.' : (h.configured ? 'De bewaarde Homebridge-login werkt niet.' : 'Homebridge is nog niet gekoppeld.')) + (d.place ? ' Weer voor ' + d.place + '.' : ' Nog geen plaats voor het weer.');
+    });
+  }
+  $('b1').onclick = function () {
+    $('m1').className = 'msg'; $('m1').textContent = 'Bezig…';
+    call('POST', { username: $('u').value, password: $('p').value }, function (d) {
+      show($('m1'), d, 'Gelukt. Het paneel kan nu bij Homebridge.');
+      if (d.ok) { $('p').value = ''; }
+      status();
+    });
+  };
+  $('b2').onclick = function () {
+    $('m2').className = 'msg'; $('m2').textContent = 'Bezig…';
+    call('POST', { place: $('pl').value }, function (d) { show($('m2'), d, 'Opgeslagen: ' + (d.place || '')); status(); });
+  };
+  $('b3').onclick = function () {
+    $('m3').className = 'msg'; $('m3').textContent = 'Bridge zoeken…';
+    $('b3').disabled = true;
+    call('POST', { hue: 'pair', host: $('hip').value }, function (d) {
+      if (!d.ok) { $('b3').disabled = false; show($('m3'), d, ''); return; }
+      showHue(d.hue);
+    });
+  };
+  $('b5').onclick = function () {
+    var want = $('b5').textContent === 'Bijwerken' ? 'apply' : 'check';
+    $('m5').className = 'msg'; $('m5').textContent = want === 'apply' ? 'Starten…' : 'Zoeken…';
+    call('POST', { update: want }, function (d) {
+      if (!d.ok) { show($('m5'), d, ''); return; }
+      if (want === 'apply') { updFrom = d.update.current; updWaiting = true; }
+      else { $('m5').textContent = ''; }
+      showUpd(d.update);
+    });
+  };
+  $('auto').onchange = function () {
+    call('POST', { update: 'auto', value: $('auto').checked }, function (d) { if (d.ok) { showUpd(d.update); } });
+  };
+  $('b4').onclick = function () {
+    call('POST', { hue: 'unpair' }, function (d) { $('m3').className = 'msg'; $('m3').textContent = d.ok ? 'Ontkoppeld. Lampen lopen weer via Homebridge.' : d.error; status(); });
+  };
+  status();
+}());
+</script>
+</body>
+</html>
