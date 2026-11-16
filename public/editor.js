@@ -16,10 +16,11 @@
   function el(tag, cls, html) { var e = document.createElement(tag); if (cls) { e.className = cls; } if (html) { e.innerHTML = html; } return e; }
   function txt(e, t) { e.textContent = t; return e; }
   function isDark(l) {
-    var now = new Date(), n = now.getHours() * 60 + now.getMinutes(), a, b;
+    var now = new Date(), n = now.getHours() * 60 + now.getMinutes(), a, b, w = state && state.weather;
     function m(x) { var p = String(x || '').split(':'); return Number(p[0]) * 60 + Number(p[1]); }
     if (!l || l.mode !== 'auto') { return !!(l && l.mode === 'dark'); }
-    a = m(l.darkFrom); b = m(l.darkTo);
+    if (l.schedule !== 'custom' && w && /^\d\d:\d\d$/.test(w.sunset) && /^\d\d:\d\d$/.test(w.sunrise)) { a = m(w.sunset); b = m(w.sunrise); }
+    else { a = m(l.darkFrom); b = m(l.darkTo); }
     return a < b ? (n >= a && n < b) : (n >= a || n < b);
   }
   function backUrl() { return /terug=paneel/.test(window.location.search) ? './' : 'setup'; }
@@ -270,7 +271,6 @@
       (d.rooms || []).forEach(function (r) { r.tiles.forEach(function (t) { if (!tileById[t.id]) { tileById[t.id] = t; } }); });
       tiles = JSON.parse(JSON.stringify((d.layout && d.layout.home) || []));
       document.body.className = 'theme-' + ((d.layout && d.layout.theme) || 'warm') + (isDark(d.layout) ? ' mode-dark' : '');
-      if (d.layout && d.layout.theme === 'eigen' && d.bg) { $('bgimg').style.backgroundImage = 'url("bg?v=' + d.bg + '")'; }
       draw();
     });
     tap($('save'), save);

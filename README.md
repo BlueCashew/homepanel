@@ -118,7 +118,7 @@ node test/update-test.js   # bijwerken, weigeren van een kapotte versie en terug
 - tik op een leeg vak om er iets op te zetten;
 - tik op een tegel voor de grootte, verplaatsen, wisselen met een andere tegel of weghalen.
 
-**Uiterlijk:** in de instellingen kies je Warm, Oceaan, Donker of Nacht, of een eigen foto. De foto wordt in de browser verkleind tot 1024×768 voordat hij naar de Pi gaat, en staat in `data/` (blijft bewaard bij updates).
+**Uiterlijk:** in de instellingen kies je een thema (Warm, Oceaan, Bos of Zand) en, los daarvan, de weergave: Licht, Donker of Automatisch. Automatisch werkt zoals op iOS: standaard donker van zonsondergang tot zonsopgang op je weerlocatie, of op een eigen schema met twee tijden.
 
 ## Uitproberen zonder Homebridge
 

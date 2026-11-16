@@ -81,29 +81,26 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
 
 /* Thema's */
 .themes:after { content: ""; display: table; clear: both; }
-.theme { position: relative; float: left; width: 31%; margin: 0 3.5% 12px 0; cursor: pointer; }
-.theme:nth-child(3n) { margin-right: 0; }
+.theme { position: relative; float: left; width: 23%; margin: 0 2.66% 12px 0; cursor: pointer; }
+.theme:nth-child(4n) { margin-right: 0; }
 .th-sw { height: 74px; border-radius: 16px; background-size: cover; background-position: center; box-shadow: inset 0 0 0 1px rgba(255,255,255,.15); }
 .th-sw i { position: absolute; left: 10px; top: 10px; width: 28px; height: 22px; border-radius: 7px; background: rgba(255,255,255,.35); }
 .th-sw b { position: absolute; left: 44px; top: 10px; width: 28px; height: 22px; border-radius: 7px; background: rgba(255,255,255,.92); }
 .th-name { font-size: 14px; font-weight: 600; margin-top: 6px; color: rgba(244,240,230,.85); }
 .theme.is-on .th-sw { box-shadow: 0 0 0 3px #f6d98f; }
 .theme.is-on .th-name { color: #f6d98f; }
-.sw-warm { background: linear-gradient(135deg, #f6a944 0%, #e7772b 52%, #c4461e 100%); }
-.sw-oceaan { background: linear-gradient(135deg, #1e7f98 0%, #135174 50%, #0e2c50 100%); }
-.sw-donker { background: linear-gradient(135deg, #17233a 0%, #1c3a44 100%); }
-.sw-nacht { background: #06070a; }
-.sw-nacht i { background: rgba(183,165,139,.2); } .sw-nacht b { background: rgba(214,150,70,.72); }
-.sw-eigen { background-color: rgba(255,255,255,.1); }
+/* Elk staal: linksboven de lichte, rechtsonder de donkere variant. */
+.sw-warm { background: linear-gradient(135deg, #f6a944 0%, #e7772b 50%, #3a2214 50%, #160c07 100%); }
+.sw-oceaan { background: linear-gradient(135deg, #1e7f98 0%, #135174 50%, #0f3242 50%, #050d17 100%); }
+.sw-bos { background: linear-gradient(135deg, #7aa475 0%, #3f7350 50%, #1d3426 50%, #07100c 100%); }
+.sw-zand { background: linear-gradient(135deg, #f6f1e8 0%, #e3d8c5 50%, #282622 50%, #0e0d0c 100%); }
+.sw-zand i { background: rgba(80,60,30,.15); } .sw-zand b { background: #fff; }
 .seg { display: table; width: 100%; table-layout: fixed; margin-top: 6px; border-radius: 14px; background: rgba(255,255,255,.08); padding: 3px; -webkit-box-sizing: border-box; box-sizing: border-box; }
 .seg div { display: table-cell; height: 44px; line-height: 44px; text-align: center; border-radius: 11px; font-size: 15px; font-weight: 600; color: rgba(244,240,230,.8); cursor: pointer; }
 .seg div.is-on { background: #f6d98f; color: #2b2210; }
 .times { overflow: hidden; }
 .times > div { float: left; width: 48%; } .times > div + div { float: right; }
 .hint { font-size: 13px; line-height: 18px; color: rgba(244,240,230,.6); margin-top: 8px; }
-.sw-eigen.leeg:after { content: "+"; position: absolute; left: 0; right: 0; top: 18px; text-align: center; font-size: 30px; font-weight: 200; color: rgba(255,255,255,.6); }
-.sw-eigen.leeg i, .sw-eigen.leeg b { display: none; }
-#file { position: absolute; left: -9999px; width: 1px; height: 1px; }
 .btnrow:after { content: ""; display: table; clear: both; }
 .btnrow button { float: left; width: 49%; }
 .btnrow button + button { float: right; }
@@ -156,13 +153,12 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
       <div class="themes" id="themes"></div>
       <label>Weergave</label>
       <div class="seg" id="modes"><div data-m="light">Licht</div><div data-m="dark">Donker</div><div data-m="auto">Automatisch</div></div>
+      <div class="seg" id="scheds" style="display:none; margin-top: 10px"><div data-s="sun">Zon onder tot zon op</div><div data-s="custom">Eigen schema</div></div>
       <div class="times" id="times" style="display:none">
         <div><label for="t-from">Donker vanaf</label><input type="time" id="t-from" value="21:00"></div>
         <div><label for="t-to">Licht vanaf</label><input type="time" id="t-to" value="07:00"></div>
       </div>
       <div class="hint" id="mode-hint"></div>
-      <input type="file" id="file" accept="image/*">
-      <div class="btnrow"><button id="b-photo">Eigen foto kiezen</button><button id="b-photo-del" class="secondary" style="display:none">Foto verwijderen</button></div>
       <div class="msg" id="m-look"></div>
     </div>
 
@@ -356,17 +352,22 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
     call('POST', { hue: 'unpair' }, function (d) { $('m3').className = 'msg'; $('m3').textContent = d.ok ? 'Ontkoppeld. Lampen lopen weer via Homebridge.' : d.error; status(); });
   };
   /* ----------------------------------------------------- uiterlijk */
-  var THEMES = [['warm', 'Warm'], ['oceaan', 'Oceaan'], ['donker', 'Donker'], ['nacht', 'Nacht'], ['eigen', 'Eigen foto']];
-  var look = { theme: 'warm', bg: 0, mode: 'light', darkFrom: '21:00', darkTo: '07:00' };
+  var THEMES = [['warm', 'Warm'], ['oceaan', 'Oceaan'], ['bos', 'Bos'], ['zand', 'Zand']];
+  var look = { theme: 'warm', mode: 'light', schedule: 'sun', darkFrom: '21:00', darkTo: '07:00', sun: null };
   var MODE_NAMES = { light: 'Licht', dark: 'Donker', auto: 'Automatisch' };
   function drawModes() {
     var kids = $('modes').children, i;
     for (i = 0; i < kids.length; i++) { kids[i].className = kids[i].getAttribute('data-m') === look.mode ? 'is-on' : ''; }
-    $('times').style.display = look.mode === 'auto' ? '' : 'none';
+
+    var sk = $('scheds').children, auto = look.mode === 'auto', custom = look.schedule === 'custom', hint = '';
+    for (i = 0; i < sk.length; i++) { sk[i].className = sk[i].getAttribute('data-s') === look.schedule ? 'is-on' : ''; }
+    $('scheds').style.display = auto ? '' : 'none';
+    $('times').style.display = auto && custom ? '' : 'none';
     $('t-from').value = look.darkFrom; $('t-to').value = look.darkTo;
-    $('mode-hint').textContent = look.theme === 'donker' || look.theme === 'nacht'
-      ? 'Het thema ' + (look.theme === 'donker' ? 'Donker' : 'Nacht') + ' is altijd donker; de weergave verandert daar niets aan.'
-      : (look.mode === 'auto' ? 'Het paneel wisselt vanzelf op deze tijden.' : '');
+    if (auto && !custom && look.sun) { hint = 'Vandaag donker van ' + look.sun.sunset + ' tot ' + look.sun.sunrise + ' (zon onder en zon op bij je weerlocatie).'; }
+    else if (auto && !custom) { hint = 'Er is geen weerlocatie ingesteld; tot die er is, gelden de tijden van het eigen schema (' + look.darkFrom + ' tot ' + look.darkTo + ').'; }
+    else if (auto) { hint = 'Het paneel wisselt vanzelf op deze tijden.'; }
+    $('mode-hint').textContent = hint;
   }
   function saveMode(body, msg) {
     call2('api/layout', body, function (r) {
@@ -382,6 +383,13 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
         saveMode({ mode: look.mode }, 'Weergave ' + MODE_NAMES[look.mode] + ' staat aan.');
       };
     }
+    var sk = $('scheds').children;
+    for (i = 0; i < sk.length; i++) {
+      sk[i].onclick = function () {
+        look.schedule = this.getAttribute('data-s'); drawModes();
+        saveMode({ schedule: look.schedule }, look.schedule === 'custom' ? 'Eigen schema staat aan.' : 'Donker van zonsondergang tot zonsopgang.');
+      };
+    }
     function times() {
       var f = $('t-from').value, t = $('t-to').value;
       if (!/^\d\d:\d\d$/.test(f) || !/^\d\d:\d\d$/.test(t)) { return; }
@@ -394,13 +402,10 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
     var box = $('themes');
     box.innerHTML = '';
     THEMES.forEach(function (t) {
-      var d = document.createElement('div'), sw;
+      var d = document.createElement('div');
       d.className = 'theme' + (look.theme === t[0] ? ' is-on' : '');
-      d.innerHTML = '<div class="th-sw sw-' + t[0] + (t[0] === 'eigen' && !look.bg ? ' leeg' : '') + '"><i></i><b></b></div><div class="th-name">' + t[1] + '</div>';
-      sw = d.children[0];
-      if (t[0] === 'eigen' && look.bg) { sw.style.backgroundImage = 'url("bg?v=' + look.bg + '")'; }
+      d.innerHTML = '<div class="th-sw sw-' + t[0] + '"><i></i><b></b></div><div class="th-name">' + t[1] + '</div>';
       d.onclick = function () {
-        if (t[0] === 'eigen' && !look.bg) { $('file').click(); return; }
         call2('api/layout', { theme: t[0] }, function (r) {
           if (!r.ok) { show($('m-look'), r, ''); return; }
           look.theme = t[0]; drawThemes(); drawModes(); $('m-look').className = 'msg ok'; $('m-look').textContent = 'Thema ' + t[1] + ' staat aan.';
@@ -408,8 +413,6 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
       };
       box.appendChild(d);
     });
-    $('b-photo-del').style.display = look.bg ? '' : 'none';
-    $('b-photo').textContent = look.bg ? 'Andere foto kiezen' : 'Eigen foto kiezen';
   }
   function call2(url, body, cb) {
     var x = new XMLHttpRequest();
@@ -422,41 +425,6 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
     };
     if (body) { x.setRequestHeader('Content-Type', 'application/json'); x.send(JSON.stringify(body)); } else { x.send(); }
   }
-  /* Foto verkleinen tot het formaat van het paneel (1024 x 768), anders loopt de oude iPad vast. */
-  $('b-photo').onclick = function () { $('file').click(); };
-  $('file').onchange = function () {
-    var f = this.files && this.files[0], rd;
-    if (!f) { return; }
-    $('m-look').className = 'msg wait'; $('m-look').textContent = 'Foto verkleinen…';
-    rd = new FileReader();
-    rd.onload = function () {
-      var img = new Image();
-      img.onload = function () {
-        var W = 1024, H = 768, c = document.createElement('canvas'), ctx, s, sw, sh;
-        c.width = W; c.height = H; ctx = c.getContext('2d');
-        s = Math.max(W / img.width, H / img.height); sw = W / s; sh = H / s;
-        ctx.drawImage(img, (img.width - sw) / 2, (img.height - sh) / 2, sw, sh, 0, 0, W, H);
-        $('m-look').textContent = 'Uploaden…';
-        call2('api/background', { image: c.toDataURL('image/jpeg', 0.82) }, function (r) {
-          if (!r.ok) { show($('m-look'), r, ''); return; }
-          look.bg = r.bg; look.theme = 'eigen'; drawThemes();
-          $('m-look').className = 'msg ok'; $('m-look').textContent = 'Je foto is de achtergrond.';
-        });
-      };
-      img.onerror = function () { $('m-look').className = 'msg err'; $('m-look').textContent = 'Deze afbeelding kan niet gelezen worden.'; };
-      img.src = rd.result;
-    };
-    rd.readAsDataURL(f);
-    this.value = '';
-  };
-  $('b-photo-del').onclick = function () {
-    call2('api/background', { remove: true }, function (r) {
-      if (!r.ok) { show($('m-look'), r, ''); return; }
-      look.bg = 0; if (look.theme === 'eigen') { look.theme = 'warm'; }
-      drawThemes(); $('m-look').className = 'msg ok'; $('m-look').textContent = 'Foto verwijderd.';
-    });
-  };
-
   /* ------------------------------------------------------- schermen */
   var screens = [], scrTimer = null;
   function drawScreens() {
@@ -490,8 +458,9 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
   function loadLayout() {
     call2('api/state?t=' + Date.now(), null, function (d) {
       if (!d.ok || !d.layout) { $('screens').textContent = 'Kon de schermen niet laden.'; return; }
-      look.theme = d.layout.theme; look.bg = d.bg || 0;
-      look.mode = d.layout.mode || 'light'; look.darkFrom = d.layout.darkFrom || '21:00'; look.darkTo = d.layout.darkTo || '07:00';
+      look.theme = d.layout.theme;
+      look.mode = d.layout.mode || 'light'; look.schedule = d.layout.schedule || 'sun';
+      look.sun = d.weather && d.weather.sunset && d.weather.sunrise ? { sunset: d.weather.sunset, sunrise: d.weather.sunrise } : null; look.darkFrom = d.layout.darkFrom || '21:00'; look.darkTo = d.layout.darkTo || '07:00';
       drawModes();
       screens = d.layout.screens || [];
       drawThemes(); drawScreens();

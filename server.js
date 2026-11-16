@@ -39,7 +39,7 @@ function loadConfig() {
   cfg.weather = Object.assign({ latitude: null, longitude: null, place: '' }, cfg.weather || {});
   cfg.hue = Object.assign({ host: '', key: '', name: '' }, cfg.hue || {});
   cfg.update = Object.assign({ auto: false, repo: 'BlueCashew/homepanel', branch: 'main' }, cfg.update || {});
-  cfg.layout = Object.assign({ theme: 'warm', mode: 'light', darkFrom: '21:00', darkTo: '07:00', home: null, screens: null }, cfg.layout || {});
+  cfg.layout = Object.assign({ theme: 'warm', mode: 'light', schedule: 'sun', darkFrom: '21:00', darkTo: '07:00', home: null, screens: null }, cfg.layout || {});
   cfg.hide = cfg.hide || [];
   return cfg;
 }
@@ -845,16 +845,10 @@ async function hueSet(id, ch, value) {
 /* -------------------------------------------------------------- indeling */
 
 const GRID = { cols: 4, rows: 3 };
-const THEMES = ['warm', 'oceaan', 'donker', 'nacht', 'eigen'];
+const THEMES = ['warm', 'oceaan', 'bos', 'zand'];
 // Weergave staat los van het thema: licht, donker of automatisch op tijd.
 const MODES = ['light', 'dark', 'auto'];
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
-const DATA = process.env.HUISPANEEL_DATA || path.join(ROOT, 'data');
-const BG_FILE = path.join(DATA, 'achtergrond.jpg');
-
-function bgVersion() {
-  try { return Math.round(fs.statSync(BG_FILE).mtimeMs); } catch (e) { return 0; }
-}
 
 /* Controleert een indeling: binnen het raster, niets over elkaar heen, alleen bekende soorten tegels. */
 function cleanHome(tiles) {
@@ -932,6 +926,7 @@ function layoutOut(rooms) {
   return {
     theme: THEMES.indexOf(config.layout.theme) === -1 ? 'warm' : config.layout.theme,
     mode: MODES.indexOf(config.layout.mode) === -1 ? 'light' : config.layout.mode,
+    schedule: config.layout.schedule === 'custom' ? 'custom' : 'sun',
     darkFrom: HHMM.test(config.layout.darkFrom) ? config.layout.darkFrom : '21:00',
     darkTo: HHMM.test(config.layout.darkTo) ? config.layout.darkTo : '07:00',
     grid: GRID,
@@ -946,34 +941,18 @@ function saveLayout(b) {
   if (b.screens !== undefined) config.layout.screens = cleanScreens(b.screens);
   if (b.theme !== undefined) {
     if (THEMES.indexOf(b.theme) === -1) throw new Error('Onbekend thema');
-    if (b.theme === 'eigen' && !bgVersion()) throw new Error('Upload eerst een eigen achtergrond');
     config.layout.theme = b.theme;
   }
   if (b.mode !== undefined && MODES.indexOf(b.mode) === -1) throw new Error('Onbekende weergave');
+  if (b.schedule !== undefined && ['sun', 'custom'].indexOf(b.schedule) === -1) throw new Error('Onbekend schema');
   const from = b.darkFrom !== undefined ? String(b.darkFrom) : config.layout.darkFrom;
   const to = b.darkTo !== undefined ? String(b.darkTo) : config.layout.darkTo;
   if (!HHMM.test(from) || !HHMM.test(to)) throw new Error('Tijd moet uu:mm zijn, bijvoorbeeld 21:00');
   if ((b.darkFrom !== undefined || b.darkTo !== undefined) && from === to) throw new Error('Begin- en eindtijd mogen niet gelijk zijn');
   if (b.mode !== undefined) config.layout.mode = b.mode;
+  if (b.schedule !== undefined) config.layout.schedule = b.schedule;
   config.layout.darkFrom = from;
   config.layout.darkTo = to;
-  saveConfig();
-}
-
-function saveBackground(b) {
-  if (b.remove) {
-    try { fs.unlinkSync(BG_FILE); } catch (e) { /* bestond niet */ }
-    if (config.layout.theme === 'eigen') { config.layout.theme = 'warm'; saveConfig(); }
-    return;
-  }
-  const m = /^data:image\/jpeg;base64,([A-Za-z0-9+\/=]+)$/.exec(String(b.image || ''));
-  if (!m) throw new Error('Alleen een JPEG-afbeelding');
-  const buf = Buffer.from(m[1], 'base64');
-  if (buf.length < 1000 || buf[0] !== 0xff || buf[1] !== 0xd8) throw new Error('Dit is geen geldige JPEG');
-  fs.mkdirSync(DATA, { recursive: true });
-  fs.writeFileSync(BG_FILE + '.tmp', buf);
-  fs.renameSync(BG_FILE + '.tmp', BG_FILE);
-  config.layout.theme = 'eigen';
   saveConfig();
 }
 
@@ -1275,7 +1254,7 @@ async function getState() {
   if (DEMO) {
     demo.rooms.forEach((r) => r.tiles.forEach((t) => { t.text = demoText(t); }));
     demo.rooms.forEach((r) => { r.key = r.key || 'hb:' + r.name; r.tiles.forEach((t) => { t.room = r.name; }); });
-    return { ok: true, demo: true, time: Date.now(), version: 'demo', homebridge: { ok: true }, rooms: demo.rooms, sonos: demo.sonos, weather: demo.weather, layout: layoutOut(demo.rooms), bg: bgVersion(), favorites: demo.favorites };
+    return { ok: true, demo: true, time: Date.now(), version: 'demo', homebridge: { ok: true }, rooms: demo.rooms, sonos: demo.sonos, weather: demo.weather, layout: layoutOut(demo.rooms), favorites: demo.favorites };
   }
   weatherTick();
   const out = { ok: true, time: Date.now(), version: currentVersion(), homebridge: { ok: true }, rooms: [], sonos: null, weather: weather.data };
@@ -1307,7 +1286,6 @@ async function getState() {
     r.tiles.forEach((t) => { if (!t.room) t.room = r.name; });
   });
   out.layout = layoutOut(out.rooms);
-  out.bg = bgVersion();
   if (config.sonos.enabled) {
     try { out.favorites = await favLoad(); } catch (e) { out.favorites = null; }
   }
@@ -1342,16 +1320,6 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && u.pathname === '/api/layout') {
       try { saveLayout(await readBody(req, 60000)); } catch (e) { return json(res, 400, { ok: false, error: e.message }); }
       return json(res, 200, { ok: true });
-    }
-    if (req.method === 'POST' && u.pathname === '/api/background') {
-      try { saveBackground(await readBody(req, 6 * 1024 * 1024)); } catch (e) { return json(res, 400, { ok: false, error: e.message }); }
-      return json(res, 200, { ok: true, bg: bgVersion() });
-    }
-    if (req.method === 'GET' && u.pathname === '/bg') {
-      if (!bgVersion()) return send(res, 404, 'text/plain', 'geen achtergrond');
-      const data = fs.readFileSync(BG_FILE);
-      res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'max-age=31536000', 'Content-Length': data.length });
-      return res.end(data);
     }
     if (req.method === 'POST' && u.pathname === '/api/set') {
       const b = await readBody(req);

@@ -7,8 +7,6 @@ html, body {
   -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
   -webkit-tap-highlight-color: rgba(0,0,0,0); -webkit-text-size-adjust: 100%;
 }
-#bgimg { display: none; position: absolute; left: 0; top: 0; right: 0; bottom: 0; background-size: cover; background-position: center; }
-#bgimg:after { content: ""; position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: rgba(0,0,0,.28); }
 
 #stage { position: absolute; left: 0; top: 0; right: 0; bottom: 0; overflow: hidden; }
 #track { position: absolute; left: 0; top: 0; height: 100%; -webkit-transform: translate3d(0,0,0); transform: translate3d(0,0,0); }
@@ -226,46 +224,40 @@ body.theme-oceaan { background: #145173; color: #fff;
 .theme-oceaan .dot { background: rgba(255,255,255,.35); } .theme-oceaan .dot.is-active { background: #fff; }
 .theme-oceaan .fav-art, .theme-oceaan .mu-art { background-color: rgba(255,255,255,.14); }
 
-/* Donker: de oorspronkelijke stijl. */
-body.theme-donker { background: #17233a; color: #f4f0e6; background-image: linear-gradient(135deg, #17233a 0%, #1c3a44 100%); }
-.theme-donker .tile, .theme-donker .barbtn, .theme-donker .mu-btn, .theme-donker .th-btn { background-color: rgba(255,255,255,.09); color: #f4f0e6; }
-.theme-donker .t-sub, .theme-donker .th-sub, .theme-donker .wx-sub { color: rgba(244,240,230,.65); }
-.theme-donker .tile.is-on { background-color: #f6d98f; color: #2b2210; }
-.theme-donker .tile.is-on .t-sub { color: #6b5a33; }
-.theme-donker .tile.k-switch.is-on, .theme-donker .tile.k-outlet.is-on, .theme-donker .tile.k-tv.is-on, .theme-donker .tile.k-fan.is-on { background-color: #a9e3cc; color: #10301f; }
-.theme-donker .tile.big-thermo { background-color: rgba(255,255,255,.12); }
-.theme-donker .mu-play { background: #f4f0e6; color: #17233a; }
-.theme-donker .dot { background: rgba(255,255,255,.28); } .theme-donker .dot.is-active { background: #f4f0e6; }
-.theme-donker .fav-art, .theme-donker .mu-art { background-color: rgba(255,255,255,.09); }
+/* Bos: saliegroen naar bosgroen. */
+body.theme-bos { background: #3f7350; color: #fff;
+  background-image: radial-gradient(circle at 82% 12%, rgba(214,236,182,.45) 0, rgba(214,236,182,0) 40%), linear-gradient(135deg, #7aa475 0%, #3f7350 52%, #22493a 100%); }
+.theme-bos .tile, .theme-bos .barbtn, .theme-bos .mu-btn, .theme-bos .th-btn { background-color: rgba(255,255,255,.16); box-shadow: inset 0 0 0 1px rgba(255,255,255,.24); color: #fff; }
+.theme-bos .t-sub, .theme-bos .th-sub, .theme-bos .wx-sub { color: rgba(255,255,255,.76); }
+.theme-bos .tile.is-on, .theme-bos .tile.big-thermo { background-color: rgba(246,250,240,.95); color: #1f3a26; box-shadow: none; }
+.theme-bos .tile.is-on .t-icon { color: #3f8a4e; }
+.theme-bos .tile.is-on .t-sub, .theme-bos .big-thermo .th-sub { color: #5d7a62; }
+.theme-bos .big-thermo .th-btn { background: rgba(31,58,38,.08); color: #1f3a26; box-shadow: none; }
+.theme-bos .mu-play { background: #fff; color: #2f6040; }
+.theme-bos .dot { background: rgba(255,255,255,.38); } .theme-bos .dot.is-active { background: #fff; }
+.theme-bos .fav-art, .theme-bos .mu-art { background-color: rgba(255,255,255,.16); }
 
-/* Nacht: bijna zwart en gedimd, prettig in een donkere kamer. */
-body.theme-nacht { background: #06070a; color: #b7a58b; }
-.theme-nacht .tile, .theme-nacht .barbtn, .theme-nacht .mu-btn, .theme-nacht .th-btn { background-color: rgba(255,255,255,.05); color: #b7a58b; }
-.theme-nacht .t-sub, .theme-nacht .th-sub, .theme-nacht .wx-sub { color: rgba(183,165,139,.6); }
-.theme-nacht .tile.is-on { background-color: rgba(214,150,70,.72); color: #160f06; }
-.theme-nacht .tile.is-on .t-sub { color: rgba(22,15,6,.65); }
-.theme-nacht .tile.big-thermo { background-color: rgba(255,255,255,.07); }
-.theme-nacht .mu-play { background: #b7a58b; color: #06070a; }
-.theme-nacht .dot { background: rgba(183,165,139,.25); } .theme-nacht .dot.is-active { background: #b7a58b; }
-.theme-nacht .slider-knob, .theme-nacht .slider-fill { background: #b7a58b; }
-.theme-nacht .np-btn { background: #b7a58b; }
-.theme-nacht .fav-art, .theme-nacht .mu-art { background-color: rgba(255,255,255,.05); }
-
-/* Eigen foto als achtergrond. */
-body.theme-eigen { background: #222; color: #fff; }
-.theme-eigen #bgimg { display: block; }
-.theme-eigen .tile, .theme-eigen .barbtn, .theme-eigen .mu-btn, .theme-eigen .th-btn { background-color: rgba(18,18,22,.42); box-shadow: inset 0 0 0 1px rgba(255,255,255,.18); color: #fff; }
-.theme-eigen .t-sub, .theme-eigen .th-sub, .theme-eigen .wx-sub { color: rgba(255,255,255,.75); }
-.theme-eigen .tile.is-on, .theme-eigen .tile.big-thermo { background-color: rgba(255,255,255,.93); color: #1d1d22; box-shadow: none; }
-.theme-eigen .tile.is-on .t-sub, .theme-eigen .big-thermo .th-sub { color: #66666f; }
-.theme-eigen .big-thermo .th-btn { background: rgba(0,0,0,.07); color: #1d1d22; box-shadow: none; }
-.theme-eigen .mu-play { background: #fff; color: #1d1d22; }
-.theme-eigen .dot { background: rgba(255,255,255,.4); } .theme-eigen .dot.is-active { background: #fff; }
-.theme-eigen .fav-art, .theme-eigen .mu-art { background-color: rgba(18,18,22,.42); }
+/* Zand: licht en rustig, crème met donkere letters. */
+body.theme-zand { background: #ece3d4; color: #2d261d;
+  background-image: radial-gradient(circle at 85% 8%, rgba(255,255,255,.7) 0, rgba(255,255,255,0) 42%), linear-gradient(135deg, #f6f1e8 0%, #ece3d4 55%, #dcd0bb 100%); }
+.theme-zand .tile, .theme-zand .mu-btn, .theme-zand .th-btn { background-color: rgba(255,255,255,.42); box-shadow: inset 0 0 0 1px rgba(80,60,30,.08); color: #2d261d; }
+.theme-zand .barbtn { background-color: rgba(45,38,29,.08); color: #2d261d; }
+.theme-zand .t-icon { color: rgba(45,38,29,.55); }
+.theme-zand .t-sub, .theme-zand .th-sub, .theme-zand .wx-sub { color: rgba(45,38,29,.6); }
+.theme-zand .tile.is-on, .theme-zand .tile.big-thermo { background-color: #fff; color: #2d261d; box-shadow: 0 2px 12px rgba(80,55,20,.12); }
+.theme-zand .tile.is-on .t-icon { color: #c98a2e; }
+.theme-zand .tile.is-on .t-sub, .theme-zand .big-thermo .th-sub { color: #8a7a62; }
+.theme-zand .big-thermo .th-btn { background: rgba(45,38,29,.07); color: #2d261d; box-shadow: none; }
+.theme-zand .mu-play { background: #2d261d; color: #fff; }
+.theme-zand .dot { background: rgba(45,38,29,.22); } .theme-zand .dot.is-active { background: #2d261d; }
+.theme-zand .fav-art, .theme-zand .mu-art { background-color: rgba(255,255,255,.42); }
+.theme-zand .face .slider:before { background: rgba(45,38,29,.15); }
+.theme-zand .face .slider-fill { background: #2d261d; }
+.theme-zand .fav-art .np-noart, .theme-zand .mu-art .np-noart { color: #2d261d; opacity: .22; }
+.mode-dark.theme-zand .fav-art .np-noart, .mode-dark.theme-zand .mu-art .np-noart { color: #fff; opacity: .55; }
 
 /* ======================================================= donkere weergave
-   Los van het thema: Warm, Oceaan en Eigen foto krijgen een donkere variant.
-   Donker en Nacht zijn al donker en blijven zoals ze zijn. */
+   Los van het thema: elk thema heeft een donkere variant. */
 body.mode-dark.theme-warm { background: #26150d; color: #f6eadc;
   background-image: radial-gradient(circle at 82% 12%, rgba(232,121,44,.26) 0, rgba(232,121,44,0) 42%), linear-gradient(135deg, #3a2214 0%, #26150d 55%, #160c07 100%); }
 .mode-dark.theme-warm .tile, .mode-dark.theme-warm .barbtn, .mode-dark.theme-warm .mu-btn, .mode-dark.theme-warm .th-btn { background-color: rgba(255,255,255,.08); box-shadow: inset 0 0 0 1px rgba(255,255,255,.1); color: #f6eadc; }
@@ -294,12 +286,33 @@ body.mode-dark.theme-oceaan { background: #0a1c2b; color: #e6f3f7;
 .mode-dark.theme-oceaan .dot { background: rgba(230,243,247,.22); } .mode-dark.theme-oceaan .dot.is-active { background: #a9dcea; }
 .mode-dark.theme-oceaan .fav-art, .mode-dark.theme-oceaan .mu-art { background-color: rgba(255,255,255,.08); }
 
-body.mode-dark.theme-eigen { background: #000; }
-.mode-dark.theme-eigen #bgimg { opacity: .4; }
-.mode-dark.theme-eigen .tile, .mode-dark.theme-eigen .barbtn, .mode-dark.theme-eigen .mu-btn, .mode-dark.theme-eigen .th-btn { background-color: rgba(0,0,0,.55); box-shadow: inset 0 0 0 1px rgba(255,255,255,.1); color: #ececf0; }
-.mode-dark.theme-eigen .t-sub, .mode-dark.theme-eigen .th-sub, .mode-dark.theme-eigen .wx-sub { color: rgba(236,236,240,.6); }
-.mode-dark.theme-eigen .tile.is-on { background-color: rgba(236,236,240,.82); color: #1d1d22; }
-.mode-dark.theme-eigen .tile.big-thermo { background-color: rgba(0,0,0,.55); color: #ececf0; }
-.mode-dark.theme-eigen .big-thermo .th-sub { color: rgba(236,236,240,.6); }
-.mode-dark.theme-eigen .big-thermo .th-btn { background: rgba(255,255,255,.1); color: #ececf0; }
-.mode-dark.theme-eigen .fav-art, .mode-dark.theme-eigen .mu-art { background-color: rgba(0,0,0,.55); }
+body.mode-dark.theme-bos { background: #10201a; color: #e8f2e4;
+  background-image: radial-gradient(circle at 82% 12%, rgba(90,150,100,.22) 0, rgba(90,150,100,0) 42%), linear-gradient(135deg, #1d3426 0%, #10201a 55%, #07100c 100%); }
+.mode-dark.theme-bos .tile, .mode-dark.theme-bos .barbtn, .mode-dark.theme-bos .mu-btn, .mode-dark.theme-bos .th-btn { background-color: rgba(255,255,255,.08); box-shadow: inset 0 0 0 1px rgba(255,255,255,.1); color: #e8f2e4; }
+.mode-dark.theme-bos .t-sub, .mode-dark.theme-bos .th-sub, .mode-dark.theme-bos .wx-sub { color: rgba(232,242,228,.6); }
+.mode-dark.theme-bos .tile.is-on { background-color: #bfe0b4; color: #13281a; box-shadow: none; }
+.mode-dark.theme-bos .tile.is-on .t-icon { color: #3a7a47; }
+.mode-dark.theme-bos .tile.is-on .t-sub { color: #4f6e55; }
+.mode-dark.theme-bos .tile.big-thermo { background-color: rgba(255,255,255,.1); color: #e8f2e4; }
+.mode-dark.theme-bos .big-thermo .th-sub { color: rgba(232,242,228,.6); }
+.mode-dark.theme-bos .big-thermo .th-btn { background: rgba(255,255,255,.1); color: #e8f2e4; }
+.mode-dark.theme-bos .mu-play { background: #bfe0b4; color: #13281a; }
+.mode-dark.theme-bos .dot { background: rgba(232,242,228,.22); } .mode-dark.theme-bos .dot.is-active { background: #bfe0b4; }
+.mode-dark.theme-bos .fav-art, .mode-dark.theme-bos .mu-art { background-color: rgba(255,255,255,.08); }
+
+body.mode-dark.theme-zand { background: #1a1917; color: #ece6dc;
+  background-image: radial-gradient(circle at 85% 8%, rgba(255,240,215,.08) 0, rgba(255,240,215,0) 42%), linear-gradient(135deg, #282622 0%, #1a1917 55%, #0e0d0c 100%); }
+.mode-dark.theme-zand .tile, .mode-dark.theme-zand .barbtn, .mode-dark.theme-zand .mu-btn, .mode-dark.theme-zand .th-btn { background-color: rgba(255,255,255,.07); box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); color: #ece6dc; }
+.mode-dark.theme-zand .t-icon { color: rgba(236,230,220,.7); }
+.mode-dark.theme-zand .t-sub, .mode-dark.theme-zand .th-sub, .mode-dark.theme-zand .wx-sub { color: rgba(236,230,220,.55); }
+.mode-dark.theme-zand .tile.is-on { background-color: #e9dcc6; color: #2a2218; box-shadow: none; }
+.mode-dark.theme-zand .tile.is-on .t-icon { color: #b07a26; }
+.mode-dark.theme-zand .tile.is-on .t-sub { color: #7a6a52; }
+.mode-dark.theme-zand .tile.big-thermo { background-color: rgba(255,255,255,.09); color: #ece6dc; box-shadow: none; }
+.mode-dark.theme-zand .big-thermo .th-sub { color: rgba(236,230,220,.55); }
+.mode-dark.theme-zand .big-thermo .th-btn { background: rgba(255,255,255,.1); color: #ece6dc; }
+.mode-dark.theme-zand .mu-play { background: #e9dcc6; color: #2a2218; }
+.mode-dark.theme-zand .dot { background: rgba(236,230,220,.2); } .mode-dark.theme-zand .dot.is-active { background: #e9dcc6; }
+.mode-dark.theme-zand .fav-art, .mode-dark.theme-zand .mu-art { background-color: rgba(255,255,255,.07); }
+.mode-dark.theme-zand .face .slider:before { background: rgba(255,255,255,.18); }
+.mode-dark.theme-zand .face .slider-fill { background: #e9dcc6; }

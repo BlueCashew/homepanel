@@ -679,20 +679,19 @@
   /* Donker: altijd, of automatisch tussen twee tijden (ook over middernacht heen). */
   function mins(hhmm) { var p = String(hhmm || '').split(':'); return Number(p[0]) * 60 + Number(p[1]); }
   function isDark(l) {
-    var now, a, b;
+    var now, a, b, w = state && state.weather;
     if (!l || l.mode === 'dark') { return !!l; }
     if (l.mode !== 'auto') { return false; }
     now = new Date(); now = now.getHours() * 60 + now.getMinutes();
-    a = mins(l.darkFrom); b = mins(l.darkTo);
+    /* Zoals iOS: standaard van zonsondergang tot zonsopgang; zonder weerlocatie het eigen schema. */
+    if (l.schedule !== 'custom' && w && /^\d\d:\d\d$/.test(w.sunset) && /^\d\d:\d\d$/.test(w.sunrise)) { a = mins(w.sunset); b = mins(w.sunrise); }
+    else { a = mins(l.darkFrom); b = mins(l.darkTo); }
     return a < b ? (now >= a && now < b) : (now >= a || now < b);
   }
   function applyTheme() {
     var th = (state.layout && state.layout.theme) || 'warm';
     var cls = 'theme-' + th + (isDark(state.layout) ? ' mode-dark' : '');
     if (document.body.className !== cls) { document.body.className = cls; }
-    if (th === 'eigen' && state.bg && $('bgimg').style.backgroundImage.indexOf('v=' + state.bg) === -1) {
-      $('bgimg').style.backgroundImage = 'url("bg?v=' + state.bg + '")';
-    }
   }
   function screensOn() { return ((state.layout && state.layout.screens) || []).filter(function (s) { return s.on; }); }
   function buildFaces() {
