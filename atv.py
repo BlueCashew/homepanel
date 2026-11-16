@@ -103,7 +103,8 @@ class Bridge(PushListener, PowerListener, DeviceListener):
     async def cmd_scan(self, msg):
         out = []
         for conf in await self.find(timeout=int(msg.get("timeout", 5))):
-            if not conf.get_service(Protocol.Companion) or conf.device_info.operating_system != OperatingSystem.TvOS:
+            model = conf.device_info.model_str or ""
+            if not conf.get_service(Protocol.Companion) or conf.device_info.operating_system != OperatingSystem.TvOS or "HomePod" in model:
                 continue  # geen Apple TV (bijvoorbeeld een HomePod, Mac of AirPlay-speaker)
             paired = {}
             for name, proto in PROTOCOLS.items():
@@ -111,7 +112,7 @@ class Bridge(PushListener, PowerListener, DeviceListener):
                 paired[name] = bool(svc and svc.credentials)
             out.append({
                 "id": conf.identifier, "name": conf.name, "address": str(conf.address),
-                "model": conf.device_info.model_str, "paired": paired,
+                "model": model, "paired": paired,
             })
         return out
 
