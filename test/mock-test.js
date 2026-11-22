@@ -396,9 +396,30 @@ function call(port, method, p, body) {
     { type: 'clock', variant: 'digital', x: 0, y: 0, w: 2, h: 2 },
     { type: 'device', ref: 'a1', x: 2, y: 0, w: 2, h: 1 },
   ] });
-  r = await call(port, 'POST', '/api/layout', { screens: [{ key: 'clock', on: true }, { key: 'hb:Woonkamer', on: false }, { key: 'clock', on: false }] });
+  /* Overstap: kamerschermen die aan stonden worden kamerknoppen op een scherm 'Kamers'. */
+  r = await call(port, 'POST', '/api/layout', { screens: [{ key: 'clock', on: true }, { key: 'hb:Woonkamer', on: true }, { key: 'hb:Overig', on: false }] });
   r = await call(port, 'GET', '/api/state');
-  assert.deepStrictEqual(r.json.layout.screens.map((x) => x.key + ':' + x.on), ['clock:true', 'hb:Woonkamer:false', 'hb:Overig:true'], 'opgeslagen volgorde, nieuwe kamers erachter');
+  assert.deepStrictEqual(r.json.layout.pages, [{ id: 'kamers', name: 'Kamers', tiles: [{ type: 'room', ref: 'hb:Woonkamer', x: 0, y: 0, w: 1, h: 1 }] }], 'oude kamerschermen worden kamerknoppen');
+  r = await call(port, 'POST', '/api/layout', { pages: [
+    { id: 'kamers', name: '  Beneden  ', tiles: [
+      { type: 'room', ref: 'hb:Woonkamer', x: 0, y: 0, w: 2, h: 0.5 },
+      { type: 'room', x: 1, y: 1, w: 1, h: 1 },                         // zonder kamer: weg
+      { type: 'device', ref: 'a1', x: 0, y: 0.5, w: 1, h: 0.5 },
+      { type: 'clock', x: 3, y: 2, w: 1, h: 1, variant: 'digital' },
+    ] },
+    { name: '', tiles: [] },
+    { id: 'kamers', name: 'Dubbel', tiles: 'geen lijst' },
+  ] });
+  assert.strictEqual(r.status, 200);
+  r = await call(port, 'GET', '/api/state');
+  const pg = r.json.layout.pages;
+  assert.strictEqual(pg.length, 3); assert.strictEqual(pg[0].name, 'Beneden'); assert.strictEqual(pg[1].name, 'Scherm 2');
+  assert.ok(pg[1].id && pg[2].id && pg[2].id !== 'kamers', 'eigen id voor elk scherm');
+  assert.deepStrictEqual(pg[0].tiles.map((t) => t.type + (t.ref ? ':' + t.ref : '') + '@' + t.x + ',' + t.y + ' ' + t.w + 'x' + t.h),
+    ['room:hb:Woonkamer@0,0 2x0.5', 'device:a1@0,0.5 1x0.5', 'clock@3,2 1x1'], 'scherm-tegels opgeschoond');
+  assert.deepStrictEqual(pg[2].tiles, []);
+  assert.strictEqual((await call(port, 'POST', '/api/layout', { pages: 'x' })).status, 400);
+  console.log('ok  schermen: kamerknoppen, eigen schermen, overstap van kamerschermen');
   assert.strictEqual((await call(port, 'POST', '/api/layout', { theme: 'roze' })).status, 400);
   // Weergave los van het thema
   assert.strictEqual(r.json.layout.mode, 'light', 'standaard licht');
@@ -448,8 +469,6 @@ function call(port, method, p, body) {
   assert.deepStrictEqual(hr.map((x) => x.name), ['Zolderkamer', 'Beneden', 'Overig', 'Woonkamer']);
   assert.strictEqual(hr[1].zone, true); assert.strictEqual(hr[1].key, 'hue:zone:zn1');
   assert.strictEqual(hr[0].tiles.filter((t) => t.name === 'Gang spot 2')[0].room, 'Zolderkamer', 'kamer gaat voor zone');
-  const scr = r.json.layout.screens;
-  assert.deepStrictEqual(scr.map((x) => x.name + ':' + x.on), ['Zolderkamer:true', 'Beneden:false', 'Overig:true', 'Woonkamer:true', 'Klok:false'], 'zones en klok standaard uit');
   assert.deepStrictEqual(hr[0].tiles.map((t) => t.name), ['Alle lampen', 'Zolderkamer spot 1', 'Gang spot 2', 'Avond', 'Lezen']);
   const ht = {}; hr[0].tiles.forEach((t) => { ht[t.name] = t; });
   assert.strictEqual(ht['Zolderkamer spot 1'].ct, 53); assert.strictEqual(ht['Zolderkamer spot 1'].text, 'Uit');
@@ -482,6 +501,31 @@ function call(port, method, p, body) {
     'scene/s1 {"recall":{"action":"active"}}',
   ]);
   console.log('ok  hue: schakelen, dimmen, kleurtemperatuur, kamer uit, scène');
+
+  /* ---- lampgroepen ---- */
+  assert.strictEqual((await call(port, 'POST', '/api/layout', { groups: [{ name: 'Spots', members: ['hue:light:l1'] }] })).status, 400, 'minstens twee lampen');
+  assert.strictEqual((await call(port, 'POST', '/api/layout', { groups: [{ name: ' ', members: ['hue:light:l1', 'hue:light:l2'] }] })).status, 400, 'naam verplicht');
+  r = await call(port, 'POST', '/api/layout', { groups: [{ name: 'Plafond spots', members: ['hue:light:l1', 'hue:light:l2', 'hue:light:l1', 'grp:x'] }] });
+  assert.strictEqual(r.status, 200);
+  await new Promise((res2) => setTimeout(res2, 2100));
+  r = await call(port, 'GET', '/api/state');
+  const zk = r.json.rooms.filter((x) => x.name === 'Zolderkamer')[0].tiles;
+  assert.deepStrictEqual(zk.map((t) => t.name), ['Alle lampen', 'Plafond spots', 'Avond', 'Lezen'], 'groep staat op de plek van de lampen');
+  const gt = zk[1];
+  assert.ok(/^grp:/.test(gt.id) && gt.kind === 'light' && gt.levelChar === 'level' && gt.ctChar === 'ct', JSON.stringify(gt));
+  assert.ok(r.json.lights.some((x) => x.id === 'hue:light:l1'), 'losse lampen blijven kiesbaar voor groepen');
+  assert.deepStrictEqual(r.json.layout.groups.map((g) => g.members), [['hue:light:l1', 'hue:light:l2']]);
+  hueLog.length = 0;
+  assert.strictEqual((await set(gt.id, 'on', true)).status, 200);
+  assert.strictEqual((await set(gt.id, 'level', 40)).status, 200);
+  assert.strictEqual((await set(gt.id, 'ct', 0)).status, 200);
+  assert.deepStrictEqual(hueLog.slice().sort(), [
+    'light/l1 {"color_temperature":{"mirek":454}}', 'light/l1 {"dimming":{"brightness":40}}', 'light/l1 {"on":{"on":true}}',
+    'light/l2 {"dimming":{"brightness":40}}', 'light/l2 {"on":{"on":true}}',
+  ], 'elke lamp in de groep krijgt de opdracht (l2 heeft geen kleurtemperatuur)');
+  assert.strictEqual((await set('grp:bestaatniet', 'on', true)).status, 502);
+  await call(port, 'POST', '/api/layout', { groups: [] });
+  console.log('ok  lampgroepen: als één lamp, schakelen naar alle lampen');
 
   r = await call(port, 'POST', '/api/setup', { hue: 'unpair' });
   assert.strictEqual(r.json.hue.paired, false);
@@ -518,7 +562,6 @@ function call(port, method, p, body) {
   r = await call(port, 'GET', '/api/state');
   assert.strictEqual(r.json.atv.ok, true); assert.strictEqual(r.json.atv.title, 'Film'); assert.strictEqual(r.json.atv.app, 'Netflix');
   assert.ok(/^\/api\/atv\/art\?k=h1$/.test(r.json.atv.art), 'afbeelding');
-  assert.strictEqual(r.json.layout.screens[0].key, 'atv', 'Apple TV-scherm vooraan'); assert.strictEqual(r.json.layout.screens[0].on, true);
   const art = await call(port, 'GET', r.json.atv.art);
   assert.strictEqual(art.status, 200); assert.strictEqual(art.type, 'image/jpeg');
   assert.strictEqual((await call(port, 'POST', '/api/atv', { action: 'key', key: 'up' })).status, 200);
@@ -531,7 +574,7 @@ function call(port, method, p, body) {
   r = await call(port, 'POST', '/api/setup', { atv: 'unpair' });
   assert.strictEqual(r.json.atv.device, null);
   r = await call(port, 'GET', '/api/state');
-  assert.strictEqual(r.json.atv, null); assert.ok(!r.json.layout.screens.some((x) => x.key === 'atv'), 'scherm weg na ontkoppelen');
+  assert.strictEqual(r.json.atv, null);
   console.log('ok  apple tv: zoeken, koppelen in twee stappen, bediening, afbeelding, ontkoppelen');
 
   /* ---- Homebridge-webinterface die de bridge kwijt is ---- */

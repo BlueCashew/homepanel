@@ -120,6 +120,18 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
 .scr-mv.is-off { opacity: .25; }
 .scr .toggle { position: absolute; right: 0; top: 11px; margin: 0; padding: 0; width: 56px; min-height: 32px; }
 .scr-fixed { position: relative; height: 44px; line-height: 44px; font-size: 15px; color: rgba(244,240,230,.6); }
+.small { font-size: 13px; color: rgba(244,240,230,.6); margin-top: -4px; }
+.gl-list { max-height: 360px; overflow-y: auto; -webkit-overflow-scrolling: touch; margin-top: 8px; border-radius: 14px; background: rgba(255,255,255,.05); padding: 4px 12px; }
+.gl-room { font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: rgba(244,240,230,.5); margin: 12px 0 4px 0; }
+.gl-item { position: relative; height: 44px; line-height: 44px; padding-left: 40px; font-size: 15px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gl-item:before { content: ""; position: absolute; left: 0; top: 10px; width: 22px; height: 22px; border-radius: 7px; border: 2px solid rgba(255,255,255,.35); }
+.gl-item.is-on:before { background: #6fd3a8; border-color: #6fd3a8; }
+.gl-item.is-on:after { content: ""; position: absolute; left: 8px; top: 14px; width: 6px; height: 11px; border: solid #17261f; border-width: 0 3px 3px 0; -webkit-transform: rotate(45deg); transform: rotate(45deg); }
+.gl-item small { color: rgba(244,240,230,.45); margin-left: 6px; }
+.grp-mem { position: absolute; left: 0; right: 168px; top: 30px; font-size: 12px; color: rgba(244,240,230,.55); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scr.grp .scr-name { line-height: 20px; top: 9px; }
+.grp-btn { position: absolute; top: 9px; height: 36px; line-height: 36px; padding: 0 12px; border-radius: 18px; background: rgba(255,255,255,.1); font-size: 14px; font-weight: 600; cursor: pointer; }
+.grp-edit { right: 92px; } .grp-del { right: 0; background: rgba(200,60,50,.7); }
 .scr-list { max-height: 520px; overflow-y: auto; -webkit-overflow-scrolling: touch; margin-top: 6px; }
 
 @media (max-width: 760px) {
@@ -142,10 +154,11 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
     <div class="card">
       <div class="card-head">
         <div class="icon"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="5" rx="2"/><rect x="13" y="10" width="8" height="11" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/></svg></div>
-        <h2>Beginscherm</h2>
+        <h2>Schermen</h2>
       </div>
-      <p>Kies welke tegels op het eerste scherm staan, waar en hoe groot. Dit kan ook op het paneel zelf, met het potlood onderaan het beginscherm.</p>
-      <button id="b-edit">Beginscherm indelen</button>
+      <p>Deel het beginscherm en je eigen schermen in: tegels, kamerknoppen en widgets, waar en hoe groot. Hier voeg je ook schermen toe of haal je ze weg. Dit kan ook op het paneel zelf, met het potlood onderaan.</p>
+      <p class="small">Volgorde bij het vegen: Muziek, Beginscherm, Apple TV (als die gekoppeld is), daarna je eigen schermen.</p>
+      <button id="b-edit">Schermen indelen</button>
     </div>
 
     <div class="card">
@@ -198,12 +211,19 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
     <div class="card">
       <div class="card-head">
         <div class="icon"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="5" width="6" height="14" rx="2" opacity=".5"/><rect x="9" y="3" width="6" height="18" rx="2"/><rect x="16" y="5" width="6" height="14" rx="2" opacity=".5"/></svg></div>
-        <h2>Schermen</h2>
+        <h2>Lampgroepen</h2>
       </div>
-      <p>Welke kamers en zones een eigen scherm krijgen, en in welke volgorde je ernaartoe veegt. Muziek staat altijd links, daarna het beginscherm.</p>
-      <div class="scr-fixed">1. Muziek &nbsp;·&nbsp; 2. Beginscherm &nbsp;·&nbsp; daarna:</div>
-      <div class="scr-list" id="screens">Laden…</div>
-      <div class="msg" id="m-scr"></div>
+      <p>Zet lampen bij elkaar, bijvoorbeeld 'Plafond spots'. Op het paneel werkt een groep als één lamp: aan, uit en dimmen gaan naar alle lampen tegelijk. De losse lampen verdwijnen dan uit de kamer.</p>
+      <div class="scr-list" id="groups">Laden…</div>
+      <div id="g-edit" style="display:none">
+        <label for="g-name">Naam van de groep</label>
+        <input id="g-name" maxlength="40" placeholder="Plafond spots">
+        <label>Lampen in deze groep</label>
+        <div class="gl-list" id="g-lights"></div>
+        <div class="btnrow"><button id="g-save">Groep opslaan</button><button id="g-cancel" class="secondary">Annuleren</button></div>
+      </div>
+      <button id="g-new">Nieuwe groep</button>
+      <div class="msg" id="m-grp"></div>
     </div>
 
     <div class="card">
@@ -544,45 +564,76 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
     };
     if (body) { x.setRequestHeader('Content-Type', 'application/json'); x.send(JSON.stringify(body)); } else { x.send(); }
   }
-  /* ------------------------------------------------------- schermen */
-  var screens = [], scrTimer = null;
-  function drawScreens() {
-    var box = $('screens');
+  /* ------------------------------------------------------- lampgroepen */
+  var groups = [], lights = [], gEdit = null;
+  function lightName(id) { var i; for (i = 0; i < lights.length; i++) { if (lights[i].id === id) { return lights[i].name; } } return 'onbekende lamp'; }
+  function drawGroups() {
+    var box = $('groups');
     box.innerHTML = '';
-    if (!screens.length) { box.textContent = 'Nog geen kamers gevonden.'; return; }
-    screens.forEach(function (s, i) {
+    if (!groups.length) { box.textContent = 'Nog geen groepen.'; }
+    groups.forEach(function (g, i) {
       var r = document.createElement('div');
-      r.className = 'scr' + (s.on ? '' : ' is-off');
-      r.innerHTML = '<div class="scr-name"></div><div class="scr-mv scr-up' + (i === 0 ? ' is-off' : '') + '">&#9650;</div><div class="scr-mv scr-down' + (i === screens.length - 1 ? ' is-off' : '') + '">&#9660;</div>' +
-        '<label class="toggle' + (s.on ? ' is-on' : '') + '"><input type="checkbox"' + (s.on ? ' checked' : '') + '><span class="track"><span class="knob"></span></span></label>';
-      r.children[0].textContent = s.name;
-      if (s.zone) { r.children[0].innerHTML += ' <small>zone</small>'; }
-      r.children[1].onclick = function () { if (i > 0) { screens.splice(i - 1, 0, screens.splice(i, 1)[0]); changed(); } };
-      r.children[2].onclick = function () { if (i < screens.length - 1) { screens.splice(i + 1, 0, screens.splice(i, 1)[0]); changed(); } };
-      r.children[3].children[0].onchange = function () { s.on = this.checked; changed(); };
+      r.className = 'scr grp';
+      r.innerHTML = '<div class="scr-name"></div><div class="grp-mem"></div><div class="grp-btn grp-edit">Wijzigen</div><div class="grp-btn grp-del">Weg</div>';
+      r.children[0].textContent = g.name;
+      r.children[1].textContent = g.members.map(lightName).join(', ');
+      r.children[2].onclick = function () { editGroup(i); };
+      r.children[3].onclick = function () {
+        if (!window.confirm('De groep "' + g.name + '" verwijderen? De lampen komen weer los in hun kamer.')) { return; }
+        saveGroups(groups.slice(0, i).concat(groups.slice(i + 1)), 'Groep verwijderd.');
+      };
       box.appendChild(r);
     });
+    $('g-new').style.display = gEdit ? 'none' : '';
+    $('g-edit').style.display = gEdit ? '' : 'none';
   }
-  function changed() {
-    drawScreens();
-    clearTimeout(scrTimer);
-    scrTimer = setTimeout(function () {
-      call2('api/layout', { screens: screens.map(function (s) { return { key: s.key, on: s.on }; }) }, function (r) {
-        var m = $('m-scr'), n = screens.filter(function (s) { return s.on; }).length;
-        if (!r.ok) { show(m, r, ''); return; }
-        m.className = 'msg ok'; m.textContent = 'Opgeslagen: ' + n + (n === 1 ? ' scherm' : ' schermen') + ' na het beginscherm.';
-      });
-    }, 500);
+  function editGroup(i) {
+    var g = i === -1 ? { id: '', name: '', members: [] } : groups[i], box = $('g-lights'), lastRoom = null, sel = {};
+    gEdit = { index: i, sel: sel };
+    g.members.forEach(function (id) { sel[id] = true; });
+    $('g-name').value = g.name;
+    box.innerHTML = '';
+    lights.slice().sort(function (a, b) { return (a.room || '').localeCompare(b.room || '') || a.name.localeCompare(b.name); }).forEach(function (l) {
+      var e;
+      if (l.room !== lastRoom) { lastRoom = l.room; e = document.createElement('div'); e.className = 'gl-room'; e.textContent = l.room || 'Zonder kamer'; box.appendChild(e); }
+      e = document.createElement('div');
+      e.className = 'gl-item' + (sel[l.id] ? ' is-on' : '');
+      e.textContent = l.name;
+      e.onclick = function () { sel[l.id] = !sel[l.id]; this.className = 'gl-item' + (sel[l.id] ? ' is-on' : ''); };
+      box.appendChild(e);
+    });
+    drawGroups();
+    $('g-name').focus();
   }
+  function saveGroups(list, okMsg) {
+    call2('api/layout', { groups: list }, function (r) {
+      var m = $('m-grp');
+      if (!r.ok) { show(m, r, ''); return; }
+      groups = list; gEdit = null; drawGroups();
+      m.className = 'msg ok'; m.textContent = okMsg;
+      loadLayout();
+    });
+  }
+  $('g-new').onclick = function () { editGroup(-1); };
+  $('g-cancel').onclick = function () { gEdit = null; drawGroups(); };
+  $('g-save').onclick = function () {
+    var e = gEdit, list = groups.slice(), members = [], id;
+    if (!e) { return; }
+    for (id in e.sel) { if (e.sel[id]) { members.push(id); } }
+    var g = { id: e.index >= 0 ? groups[e.index].id : '', name: $('g-name').value, members: members };
+    if (e.index >= 0) { list[e.index] = g; } else { list.push(g); }
+    saveGroups(list, 'Groep opgeslagen. Op het paneel staat hij nu op de plek van de lampen.');
+  };
   function loadLayout() {
     call2('api/state?t=' + Date.now(), null, function (d) {
-      if (!d.ok || !d.layout) { $('screens').textContent = 'Kon de schermen niet laden.'; return; }
+      if (!d.ok || !d.layout) { $('groups').textContent = 'Kon de lampen niet laden.'; return; }
       look.theme = d.layout.theme;
       look.mode = d.layout.mode || 'light'; look.schedule = d.layout.schedule || 'sun';
       look.sun = d.weather && d.weather.sunset && d.weather.sunrise ? { sunset: d.weather.sunset, sunrise: d.weather.sunrise } : null; look.darkFrom = d.layout.darkFrom || '21:00'; look.darkTo = d.layout.darkTo || '07:00';
       drawModes();
-      screens = d.layout.screens || [];
-      drawThemes(); drawScreens();
+      groups = d.layout.groups || []; lights = d.lights || [];
+      drawThemes();
+      if (!gEdit) { drawGroups(); }
     });
   }
   $('b-edit').onclick = function () { window.location.href = 'editor'; };

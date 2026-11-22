@@ -42,12 +42,24 @@ html, body {
 .th-btn svg { position: absolute; left: 14px; top: 14px; width: 28px; height: 28px; }
 .th-minus { left: 18px; } .th-plus { right: 18px; }
 .th-btn.is-down { opacity: .5; }
-.th-small .th-num { top: 22px; font-size: 64px; line-height: 64px; letter-spacing: -2px; }
-.th-small .th-num small { font-size: 26px; top: 6px; }
-.th-small .th-label { left: 18px; right: 18px; bottom: 40px; font-size: 18px; text-align: left; }
-.th-small .th-sub { left: 18px; right: 18px; bottom: 17px; font-size: 14px; text-align: left; }
-.s-2x1.th-small .th-num { left: 24px; right: auto; top: 50%; margin-top: -40px; font-size: 82px; line-height: 82px; }
-.s-2x1.th-small .th-label, .s-2x1.th-small .th-sub { left: 52%; }
+/* Thermostaat per formaat: altijd het doel groot, met - en +. */
+.th-12 .th-num { top: 20%; font-size: 92px; line-height: 92px; letter-spacing: -3px; }
+.th-12 .th-num small { font-size: 34px; top: 10px; }
+.th-12 .th-label { left: 14px; right: 14px; bottom: 100px; }
+.th-12 .th-sub { left: 14px; right: 14px; bottom: 78px; }
+.th-12 .th-minus { left: 16px; } .th-12 .th-plus { right: 16px; }
+.th-21 .th-num { left: 26px; right: auto; top: 50%; margin-top: -58px; font-size: 104px; line-height: 104px; letter-spacing: -4px; text-align: left; }
+.th-21 .th-num small { font-size: 38px; top: 12px; }
+.th-21 .th-label { left: 56%; right: 18px; top: 30px; bottom: auto; text-align: left; }
+.th-21 .th-sub { left: 56%; right: 18px; top: 58px; bottom: auto; text-align: left; }
+.th-21 .th-minus { left: auto; right: 90px; } .th-21 .th-plus { right: 20px; }
+.th-11 .th-num { top: 14px; font-size: 64px; line-height: 64px; letter-spacing: -2px; }
+.th-11 .th-num small { font-size: 26px; top: 6px; }
+.th-11 .th-btn { bottom: 14px; width: 48px; height: 48px; border-radius: 24px; }
+.th-11 .th-btn svg { left: 12px; top: 12px; width: 24px; height: 24px; }
+.th-11 .th-minus { left: 14px; } .th-11 .th-plus { right: 14px; }
+.th-11 .th-label { left: 64px; right: 64px; bottom: 36px; font-size: 15px; }
+.th-11 .th-sub { left: 64px; right: 64px; bottom: 16px; font-size: 13px; }
 
 /* klok */
 .clock-svg { position: absolute; left: 50%; top: 50%; }
@@ -79,6 +91,11 @@ html, body {
 .np-noart { position: absolute; left: 22px; top: 20px; width: 40px; height: 40px; opacity: .55; color: #fff; }
 .np-noart svg { width: 100%; height: 100%; }
 .s-2x2 .np-title { font-size: 26px; bottom: 54px; } .s-2x2 .np-artist { font-size: 18px; bottom: 26px; }
+/* Smalle formaten: knop rechtsboven, zodat de titel de hele breedte heeft. */
+.s-1x1 .np-btn, .s-1x2 .np-btn { top: 16px; bottom: auto; width: 52px; height: 52px; border-radius: 26px; }
+.s-1x1 .np-btn svg, .s-1x2 .np-btn svg { left: 13px; top: 13px; }
+.s-1x1 .np-title, .s-1x1 .np-artist, .s-1x2 .np-title, .s-1x2 .np-artist { right: 18px; left: 18px; }
+.s-1x2 .np-title { white-space: normal; max-height: 52px; line-height: 26px; bottom: 46px; }
 
 /* ---------------------------------------------------------- kamerscherm */
 .room-title { position: absolute; left: 32px; top: 26px; font-size: 34px; line-height: 40px; font-weight: 300; letter-spacing: -.5px; }
@@ -172,7 +189,7 @@ html, body {
 .slider-big .slider-knob { top: 14px; width: 44px; height: 44px; margin-left: -22px; border-radius: 22px; }
 
 /* -------------------------------------------------------------- sheet */
-#sheet { display: none; position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: rgba(8,10,16,.6); }
+#sheet { z-index: 60; display: none; position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: rgba(8,10,16,.6); }
 #sheet.is-shown { display: block; }
 .sheet-box {
   position: absolute; left: 50%; top: 50%; width: 520px; margin-left: -260px; margin-top: -150px; color: #f4f0e6;
@@ -366,3 +383,20 @@ body.mode-dark.theme-zand { background: #1a1917; color: #ece6dc;
 .mode-dark.theme-zand .fav-art, .mode-dark.theme-zand .mu-art { background-color: rgba(255,255,255,.07); }
 .mode-dark.theme-zand .face .slider:before { background: rgba(255,255,255,.18); }
 .mode-dark.theme-zand .face .slider-fill { background: #e9dcc6; }
+
+/* ------------------------------------------------------- kamer-overlay */
+.room-ov { position: absolute; left: 0; top: 0; right: 0; bottom: 0; z-index: 40; background: rgba(6,8,12,.55); opacity: 0; -webkit-transition: opacity .18s; transition: opacity .18s; }
+.room-ov.is-open { opacity: 1; }
+.rv-card { position: absolute; left: 28px; right: 28px; top: 28px; bottom: 28px; z-index: 41; border-radius: 30px; overflow: hidden;
+  background: inherit; box-shadow: 0 20px 60px rgba(0,0,0,.45); opacity: 0; -webkit-transform: translateY(24px); transform: translateY(24px);
+  -webkit-transition: opacity .18s, -webkit-transform .22s; transition: opacity .18s, transform .22s; }
+.rv-card.is-open { opacity: 1; -webkit-transform: none; transform: none; }
+.rv-card .room-tiles { top: 104px; bottom: 20px; left: 28px; right: 28px; }
+.rv-card .room-tiles .tile { width: 23.5%; margin-right: 2%; height: 180px; }
+.rv-card .room-tiles .tile.endrow { margin-right: 0; }
+.rv-card .room-tiles .tile.s-1xh { height: 76px; }
+.rv-close { position: absolute; right: 22px; top: 22px; width: 52px; height: 52px; border-radius: 26px; background: rgba(255,255,255,.18); }
+.rv-close svg { position: absolute; left: 14px; top: 14px; width: 24px; height: 24px; }
+.theme-zand .rv-close { background: rgba(45,38,29,.08); }
+.mode-dark .rv-close { background: rgba(255,255,255,.12); }
+.page-empty { position: absolute; left: 0; right: 0; top: 45%; text-align: center; font-size: 18px; opacity: .7; }

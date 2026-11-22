@@ -77,12 +77,14 @@
     fog: svg('<path d="M4 8h16M2 12h18M5 16h15M7 20h10"' + STROKE + '/>')
   };
   ICON.fan = ICON['switch'];
+  ICON.close = svg('<path d="M6 6l12 12M18 6L6 18"' + STROKE + '/>');
+  ICON.room = svg('<path d="M3.5 11.2L12 4l8.5 7.2"' + STROKE + '/><path d="M6 9.6V19a1 1 0 0 0 1 1h3.6v-5.2h2.8V20H17a1 1 0 0 0 1-1V9.6"' + STROKE + '/>');
   ICON.chev = svg('<path d="M8 14.5l4-4 4 4"' + STROKE + '/>');
   ICON.back = svg('<path d="M14.5 6.5L9 12l5.5 5.5"' + STROKE + '/>');
   ICON.power = svg('<path d="M12 3.5v8"' + STROKE + '/><path d="M7 6.8a7.5 7.5 0 1 0 10 0"' + STROKE + '/>');
   ICON.playpause = svg('<path d="M3 5.2v13.6a.8.8 0 0 0 1.2.7l9.6-6.8a.8.8 0 0 0 0-1.4L4.2 4.5a.8.8 0 0 0-1.2.7z"/><rect x="15" y="5" width="2.6" height="14" rx="1"/><rect x="19.4" y="5" width="2.6" height="14" rx="1"/>');
   function iconFor(t) {
-    if (t.type === 'HueGroup') { return ICON.group; }
+    if (t.type === 'HueGroup' || t.isGroup) { return ICON.group; }
     return ICON[t.kind] || ICON['switch'];
   }
   function weatherIcon(text) {
@@ -198,7 +200,7 @@
     face = n < 0 ? 0 : (n > faces.length - 1 ? faces.length - 1 : n);
     trackTo(-face * W(), anim !== false);
     for (i = 0; i < dots.length; i++) { setClass(dots[i], 'is-active', i === face); }
-    $('edit').style.display = faces[face] && faces[face].key === 'home' ? '' : 'none';
+    $('edit').style.display = faces[face] && (faces[face].key === 'home' || faces[face].key.indexOf('page:') === 0) ? '' : 'none';
     try { window.localStorage.setItem('hp-face', faces[face] ? faces[face].key : 'home'); } catch (e) { /* privemodus */ }
   }
   function initSwipe() {
@@ -322,7 +324,7 @@
       if (!t) { e.className = 'tile t-missing s-' + size + (e.getAttribute('data-end') ? ' endrow' : ''); setText(e.children[1], 'Niet gevonden'); setText(e.children[2], 'Pas het beginscherm aan'); return; }
       s = shown(t);
       e.className = 'tile s-' + size + ' k-' + t.kind + (s.on ? ' is-on' : '') + (t.fault && !pending[t.id] ? ' is-fault' : '') + (e.getAttribute('data-end') ? ' endrow' : '');
-      k = t.type === 'HueGroup' ? 'group' : t.kind;
+      k = t.type === 'HueGroup' || t.isGroup ? 'group' : t.kind;
       if (k !== iconKind) { iconKind = k; e.children[0].innerHTML = iconFor(t); }
       setText(e.children[1], t.name === 'Alle lampen' && !inRoom && t.room ? t.room : t.name);
       if (t.kind === 'scene' && !inRoom) { setText(e.children[2], (t.room || 'Scène') + (s.on ? ' · actief' : '')); return; }
@@ -331,12 +333,11 @@
     return e;
   }
 
-  /* Thermostaat: groot met - en +, of klein (tik opent de stapjes). */
+  /* Thermostaat: in elk formaat met - en +. Het grote getal is de gewenste temperatuur. */
   function makeThermo(id, size) {
-    var big = size === '2x2' || size === '1x2';
-    var e = el('div', 'tile big-thermo s-' + size + (big ? '' : ' th-small'),
+    var e = el('div', 'tile big-thermo th-' + size.replace('x', '') + ' s-' + size,
       '<div class="th-num"></div><div class="th-label"></div><div class="th-sub"></div>' +
-      (big ? '<div class="th-btn th-minus">' + ICON.minus + '</div><div class="th-btn th-plus">' + ICON.plus + '</div>' : ''));
+      '<div class="th-btn th-minus">' + ICON.minus + '</div><div class="th-btn th-plus">' + ICON.plus + '</div>');
     var local = null, timer = null;
     function shownTarget(t) { return local !== null ? local : shown(t).level; }
     function bump(dir) {
@@ -352,16 +353,12 @@
       var t = tileById[id], target;
       if (!t) { e.children[0].innerHTML = '–'; setText(e.children[1], 'Niet gevonden'); return; }
       target = shownTarget(t);
-      e.children[0].innerHTML = esc(temp(big ? target : t.cur)) + '<small>°</small>';
+      e.children[0].innerHTML = esc(temp(target)) + '<small>°</small>';
       setText(e.children[1], t.name === t.room || !t.room ? 'Thermostaat' : t.name);
-      setText(e.children[2], big ? ((t.room ? t.room + ' · ' : '') + 'nu ' + temp(t.cur) + '°') : (typeof target === 'number' && Math.abs(target - t.cur) >= 0.5 ? 'naar ' + temp(target) + '°' : (t.room || '')));
+      setText(e.children[2], (size === '2x2' && t.room ? t.room + ' · ' : '') + 'nu ' + temp(t.cur) + '°');
     }
-    if (big) {
-      onTap(e.children[3], function () { bump(-1); });
-      onTap(e.children[4], function () { bump(1); });
-    } else {
-      onTap(e, function () { tapDevice(id); });
-    }
+    onTap(e.children[3], function () { bump(-1); });
+    onTap(e.children[4], function () { bump(1); });
     bound.push({ el: e, paint: paint });
     return e;
   }
@@ -437,19 +434,19 @@
     var sw = size ? Number(size.charAt(0)) : 1, sh = size ? (size.charAt(2) === 'h' ? 0.5 : Number(size.charAt(2))) : 1;
     return { w: cw * sw + GAP * (sw - 1), h: ch * sh + GAP * (sh - 1), cw: cw, ch: ch };
   }
-  function buildHome() {
-    var f = el('div', 'face face-home');
-    var tiles = (state.layout && state.layout.home) || [];
+  function buildGrid(tiles, cls) {
+    var f = el('div', 'face ' + cls);
     var c = cellPx('1x1');
-    tiles.forEach(function (t) {
+    (tiles || []).forEach(function (t) {
       var size = t.w + 'x' + (t.h === 0.5 ? 'h' : t.h), e, dev, p = cellPx(size);
       if (t.type === 'clock') { e = makeClock(t.variant, size); }
       else if (t.type === 'weather') { e = makeWeather(size); }
       else if (t.type === 'nowplaying') { e = makeNowPlaying(size); }
       else if (t.type === 'atv') { e = makeAtvTile(size); }
+      else if (t.type === 'room') { e = makeRoomTile(t.ref, size); }
       else {
         dev = tileById[t.ref];
-        e = dev && dev.kind === 'climate' && dev.stepper ? makeThermo(t.ref, size) : makeDevice(t.ref, size, false);
+        e = dev && dev.kind === 'climate' && dev.stepper && size.charAt(2) !== 'h' ? makeThermo(t.ref, size) : makeDevice(t.ref, size, false);
       }
       e.style.left = Math.round(28 + t.x * (c.cw + GAP)) + 'px';
       e.style.top = Math.round(28 + t.y * (c.ch + GAP)) + 'px';
@@ -457,7 +454,31 @@
       e.style.height = Math.round(p.h) + 'px';
       f.appendChild(e);
     });
+    if (!(tiles || []).length && cls !== 'face-home') {
+      f.appendChild(el('div', 'page-empty', 'Dit scherm is nog leeg. Tik op het potlood om het in te delen.'));
+    }
     return f;
+  }
+  function buildHome() { return buildGrid((state.layout && state.layout.home) || [], 'face-home'); }
+
+  /* Kamerknop: naam, hoeveel lampen aan; tik opent de kamer in een overlay. */
+  function lightsOn(r) {
+    var n = 0;
+    r.tiles.forEach(function (t) { if (t.kind === 'light' && t.type !== 'HueGroup' && shown(t).on) { n += 1; } });
+    return n;
+  }
+  function makeRoomTile(key, size) {
+    var e = el('div', 'tile k-room s-' + size, '<div class="t-icon">' + ICON.room + '</div><div class="t-name"></div><div class="t-sub"></div>');
+    onTap(e, function () { openRoom(key); });
+    bound.push({ el: e, paint: function () {
+      var r = roomByKey(key), n;
+      if (!r) { e.className = 'tile k-room t-missing s-' + size; setText(e.children[1], 'Kamer niet gevonden'); setText(e.children[2], 'Pas dit scherm aan'); return; }
+      n = lightsOn(r);
+      e.className = 'tile k-room s-' + size + (n ? ' is-on' : '');
+      setText(e.children[1], r.name);
+      setText(e.children[2], n ? n + (n === 1 ? ' lamp aan' : ' lampen aan') : 'Alles uit');
+    } });
+    return e;
   }
 
   /* ------------------------------------------------------- kamerscherm */
@@ -466,31 +487,51 @@
     for (i = 0; i < rs.length; i++) { if (rs[i].key === key) { return rs[i]; } }
     return null;
   }
-  function buildRoom(room) {
-    var f = el('div', 'face face-room', '<div class="room-title"></div><div class="room-count"></div><div class="room-tiles scroll"></div>');
-    setText(f.children[0], room.name);
-    bound.push({ el: f, paint: function () {
-      var r = roomByKey(room.key), on = 0;
-      if (!r) { return; }
-      r.tiles.forEach(function (t) { if (t.kind === 'light' && t.type !== 'HueGroup' && shown(t).on) { on++; } });
-      setText(f.children[1], on ? on + (on === 1 ? ' lamp aan' : ' lampen aan') : 'Alles uit');
-    } });
-    /* Eerst de scènes, dan de lampen (allebei halve hoogte), dan de rest. Elke groep begint op een nieuwe rij. */
-    var box = f.children[2];
+  /* Kamer-overlay: scènes, dan lampen (halve hoogte), dan de rest. */
+  var ov = null;
+  function openRoom(key) {
+    var r = roomByKey(key), saved, card, box;
+    if (!r) { return; }
+    closeRoom();
+    ov = { key: key, bound: [] };
+    /* Gedimde achtergrond en een kaart ernaast (niet erin), zodat de kaart de achtergrond van het thema kan erven. */
+    ov.el = el('div', 'room-ov');
+    ov.card = card = el('div', 'rv-card', '<div class="room-title"></div><div class="room-count"></div><div class="rv-close">' + ICON.close + '</div><div class="room-tiles scroll"></div>');
+    setText(card.children[0], r.name);
+    box = card.children[3];
+    saved = bound; bound = [];
     function group(list, size) {
       list.forEach(function (t, i) {
         var e = size === '1x1' && t.kind === 'climate' && t.stepper ? makeThermo(t.id, '1x1') : makeDevice(t.id, size, true);
-        if (i % 5 === 4) { e.className += ' endrow'; e.setAttribute('data-end', '1'); }
+        if (i % 4 === 3) { e.className += ' endrow'; e.setAttribute('data-end', '1'); }
         box.appendChild(e);
       });
       if (list.length) { box.appendChild(el('div', 'rowbreak')); }
     }
-    group(room.tiles.filter(function (t) { return t.kind === 'scene'; }), '1xh');
-    group(room.tiles.filter(function (t) { return t.kind === 'light'; }), '1xh');
-    group(room.tiles.filter(function (t) { return t.kind !== 'scene' && t.kind !== 'light'; }), '1x1');
-    return f;
+    group(r.tiles.filter(function (t) { return t.kind === 'scene'; }), '1xh');
+    group(r.tiles.filter(function (t) { return t.kind === 'light'; }), '1xh');
+    group(r.tiles.filter(function (t) { return t.kind !== 'scene' && t.kind !== 'light'; }), '1x1');
+    ov.bound = bound; bound = saved;
+    ov.bound.push({ el: card, paint: function () {
+      var rr = roomByKey(key), n;
+      if (!rr) { closeRoom(); return; }
+      n = lightsOn(rr);
+      setText(card.children[1], n ? n + (n === 1 ? ' lamp aan' : ' lampen aan') : 'Alles uit');
+    } });
+    onTap(card.children[2], closeRoom);
+    ov.el.addEventListener('touchend', function (ev) { if (ev.target === ov.el) { ev.preventDefault(); lastTouch = Date.now(); closeRoom(); } }, false);
+    ov.el.addEventListener('click', function (ev) { if (ov && ev.target === ov.el && Date.now() - lastTouch > 800) { closeRoom(); } }, false);
+    document.body.appendChild(ov.el);
+    document.body.appendChild(card);
+    paintAll();
+    setTimeout(function () { if (ov) { addClass(ov.el, 'is-open'); addClass(card, 'is-open'); } }, 10);
   }
-
+  function closeRoom() {
+    if (!ov) { return; }
+    if (ov.el.parentNode) { ov.el.parentNode.removeChild(ov.el); }
+    if (ov.card.parentNode) { ov.card.parentNode.removeChild(ov.card); }
+    ov = null;
+  }
 
   /* Afbeelding eerst laden; pas tonen als dat lukt. Mislukt het, dan blijft het icoon staan (geen leeg vlak). */
   function setArt(box, icon, url) {
@@ -598,18 +639,6 @@
   }
 
   /* -------------------------------------------------------- klokscherm */
-  function buildClockFace() {
-    var f = el('div', 'face face-clock', '<div class="fc-time"></div><div class="fc-date"></div><div class="fc-wx"></div>');
-    clocks.push(function (now) {
-      setText(f.children[0], two(now.getHours()) + ':' + two(now.getMinutes()));
-      setText(f.children[1], DAYS[now.getDay()] + ' ' + now.getDate() + ' ' + MONTHS[now.getMonth()]);
-    });
-    bound.push({ el: f, paint: function () {
-      var w = state && state.weather;
-      setText(f.children[2], w ? w.temp + '° ' + String(w.text).toLowerCase() + (w.sunset ? ' · zon onder ' + w.sunset : '') : '');
-    } });
-    return f;
-  }
 
   /* ----------------------------------------------------------- muziek */
   var volSlider = null, sonosHold = 0, sonosHoldPlaying = false, muEls = null, favSig = '';
@@ -830,20 +859,17 @@
     var cls = 'theme-' + th + (isDark(state.layout) ? ' mode-dark' : '');
     if (document.body.className !== cls) { document.body.className = cls; try { window.localStorage.setItem('hp-theme', cls); } catch (e) { /* privémodus */ } }
   }
-  function screensOn() { return ((state.layout && state.layout.screens) || []).filter(function (s) { return s.on; }); }
   function buildFaces() {
     var track = $('track'), dots = $('dots'), wanted = 1, i, keyNow;
     keyNow = faces[face] ? faces[face].key : null;
     if (!keyNow) { try { keyNow = window.localStorage.getItem('hp-face'); } catch (e) { keyNow = null; } }
     bound = []; clocks = [];
     track.innerHTML = ''; dots.innerHTML = '';
+    /* Vast: muziek (links), beginscherm, Apple TV. Daarna de eigen schermen. */
     faces = [{ key: 'music', el: buildMusic() }, { key: 'home', el: buildHome() }];
-    screensOn().forEach(function (s) {
-      var r;
-      if (s.key === 'clock') { faces.push({ key: 'clock', el: buildClockFace() }); return; }
-      if (s.key === 'atv') { if (state.atv) { faces.push({ key: 'atv', el: buildAtv() }); } return; }
-      r = roomByKey(s.key);
-      if (r && r.tiles.length) { faces.push({ key: s.key, el: buildRoom(r) }); }
+    if (state.atv) { faces.push({ key: 'atv', el: buildAtv() }); }
+    ((state.layout && state.layout.pages) || []).forEach(function (p) {
+      faces.push({ key: 'page:' + p.id, el: buildGrid(p.tiles, 'face-page') });
     });
     track.style.width = (faces.length * W()) + 'px';
     faces.forEach(function (f, n) {
@@ -857,11 +883,12 @@
   }
   function signature() {
     var l = state.layout || {}, rs = (state.rooms || []).map(function (r) { return r.key + ':' + r.tiles.map(function (t) { return t.id + t.kind; }).join(','); });
-    return W() + 'x' + window.innerHeight + '|' + JSON.stringify(l.home) + '|' + JSON.stringify(screensOn()) + '|' + rs.join(';') + '|' + (state.atv ? 'atv' : '');
+    return W() + 'x' + window.innerHeight + '|' + JSON.stringify(l.home) + '|' + JSON.stringify(l.pages) + '|' + rs.join(';') + '|' + (state.atv ? 'atv' : '');
   }
   function paintAll() {
     var i;
     for (i = 0; i < bound.length; i++) { bound[i].paint(); }
+    if (ov) { for (i = 0; i < ov.bound.length; i++) { ov.bound[i].paint(); } }
     paintSheet();
   }
   function render() {
@@ -906,7 +933,7 @@
     $('gear').innerHTML = ICON.gear;
     $('edit').innerHTML = ICON.pencil;
     onTap($('gear'), function () { window.location.href = 'setup'; });
-    onTap($('edit'), function () { window.location.href = 'editor?terug=paneel'; });
+    onTap($('edit'), function () { window.location.href = 'editor?terug=paneel&scherm=' + encodeURIComponent((faces[face] && faces[face].key) || 'home'); });
     initSwipe();
     initSheet();
     setInterval(tick, 1000);

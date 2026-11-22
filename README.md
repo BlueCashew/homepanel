@@ -113,11 +113,12 @@ node test/update-test.js   # bijwerken, weigeren van een kapotte versie en terug
 
 ## Bediening
 
-**Schermen (vegen):** Muziek ← **Beginscherm** → de kamers en zones die je aanzet.
+**Schermen (vegen):** Muziek ← **Beginscherm** → Apple TV (als die gekoppeld is) → je eigen schermen.
 
-- **Beginscherm:** een raster van 4×3 vakken met tegels van 1×1, 2×1, 1×2 of 2×2. Mogelijk zijn lampen, groepen ("Alle lampen"), scènes, schakelaars, de thermostaat (op 2×2 groot met − en +), een klok (analoog of digitaal), het weer en "Nu speelt".
-- **Kamerschermen:** per kamer of zone alle tegels. In de instellingen onder *Schermen* zet je ze aan of uit en kies je de volgorde. Hue-zones staan standaard uit. Een groot klokscherm kan er ook bij.
-- **Muziek:** wat er speelt, met bediening en volume, plus je Sonos-favorieten en Sonos-playlists om af te spelen. Zoeken in Apple Music of andere diensten kan niet; bewaar wat je wilt horen als favoriet in de Sonos-app.
+- **Beginscherm en eigen schermen:** elk een raster van 4×3 vakken. Tegels kunnen 1×½, 2×½, 1×1, 2×1, 1×2 of 2×2 zijn (scènes, lampen, schakelaars en kamerknoppen ook halve hoogte; de thermostaat en widgets 1×1 t/m 2×2). Mogelijk zijn lampen, lampgroepen, scènes, schakelaars, de thermostaat (in elk formaat met − en +), kamerknoppen, een klok (analoog of digitaal), het weer, "Nu speelt" en de Apple TV.
+- **Kamerknoppen:** tonen hoeveel lampen er aan zijn; tikken opent de kamer in een venster over het scherm, met eerst de scènes, dan de lampen en dan de rest.
+- **Lampgroepen:** in de instellingen zet je lampen bij elkaar (bijv. "Plafond spots"). Op het paneel werkt de groep als één lamp en vervangt hij de losse lampen in de kamer. Groepen bestaan alleen in het paneel, niet in de Hue-app of HomeKit.
+- **Muziek:** wat er speelt (met hoes of zenderlogo), bediening, volumeschuif met − en +, plus je Sonos-favorieten en Sonos-playlists om af te spelen. Zoeken in Apple Music of andere diensten kan niet; bewaar wat je wilt horen als favoriet in de Sonos-app.
 
 **Tikken en vasthouden:**
 
@@ -125,10 +126,13 @@ node test/update-test.js   # bijwerken, weigeren van een kapotte versie en terug
 - Lang indrukken op een lamp opent helderheid en, als de lamp dat kan, kleurtemperatuur.
 - Sloten en garagedeuren vragen eerst om bevestiging.
 
-**Indelen:** het potlood onderaan het beginscherm (of *Beginscherm indelen* in de instellingen) opent de editor:
+**Indelen:** het potlood onderaan (of *Schermen indelen* in de instellingen) opent de editor voor het scherm waar je op staat:
 
-- tik op een leeg vak om er iets op te zetten;
+- bovenaan kies je het scherm, of maak je met *+ Scherm* een nieuw scherm; onderaan kun je een eigen scherm hernoemen, verschuiven of weghalen;
+- tik op een leeg vak en kies eerst een soort (lampen, scènes, schakelaars en apparaten, kamers, widgets), dan uit de lijst van die soort;
 - tik op een tegel voor de grootte, verplaatsen, wisselen met een andere tegel of weghalen.
+
+Na de overstap van kamerschermen naar eigen schermen worden de kamerschermen die aan stonden kamerknoppen op een scherm "Kamers".
 
 **Uiterlijk:** in de instellingen kies je een thema (Warm, Oceaan, Bos of Zand) en, los daarvan, de weergave: Licht, Donker of Automatisch. Automatisch werkt zoals op iOS: standaard donker van zonsondergang tot zonsopgang op je weerlocatie, of op een eigen schema met twee tijden.
 

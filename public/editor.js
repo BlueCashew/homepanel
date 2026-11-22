@@ -1,9 +1,12 @@
-/* Editor voor het beginscherm. ES5, werkt met tikken (iPad, telefoon) en met de muis (Mac). */
+/* Editor voor het beginscherm en de eigen schermen. ES5, werkt met tikken (iPad, telefoon) en met de muis (Mac). */
 (function () {
   'use strict';
 
   var state = null;
-  var tiles = [];          // { type, ref, x, y, w, h, variant }
+  var tiles = [];          // tegels van het scherm dat nu open staat: { type, ref, x, y, w, h, variant }
+  var home = [];           // tegels van het beginscherm
+  var pages = [];          // eigen schermen: { id, name, tiles }
+  var cur = -1;            // -1 = beginscherm, anders index in pages
   var sel = -1;            // index van de geselecteerde tegel
   var moving = false;
   var target = null;       // { x, y } van het lege vak waarvoor de kiezer open is
@@ -38,6 +41,7 @@
     nowplaying: svg('<path d="M9 18a3 3 0 1 1-2-2.83V5.5a1 1 0 0 1 .76-.97l10-2.5A1 1 0 0 1 19 3v11.99a3 3 0 1 1-2-2.82V7.28l-8 2V18z"/>')
   };
   ICON.outlet = ICON.tv = ICON.fan = ICON.cover = ICON.lock = ICON['switch'];
+  ICON.room = svg('<path d="M3.5 11.2L12 4l8.5 7.2" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 9.6V19a1 1 0 0 0 1 1h3.6v-5.2h2.8V20H17a1 1 0 0 0 1-1V9.6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/>');
   ICON.tvset = svg('<rect x="2" y="4" width="20" height="13" rx="2.5"/><rect x="7" y="19" width="10" height="2" rx="1"/>');
 
   function tap(e, fn) {
@@ -96,19 +100,84 @@
     return true;
   }
 
+  /* ---------------------------------------------------------- soorten */
+  /* Welke formaten bij welke tegel horen. */
+  var S_HALF = [[1, 0.5], [2, 0.5], [1, 1], [2, 1]];
+  var S_DEV = [[1, 0.5], [2, 0.5], [1, 1], [2, 1], [1, 2], [2, 2]];
+  var S_BIG = [[1, 1], [2, 1], [1, 2], [2, 2]];
+  function devOf(t) { return t && t.type === 'device' ? tileById[t.ref] : null; }
+  function sizesFor(t) {
+    var d = devOf(t);
+    if (t.type === 'room') { return S_HALF; }
+    if (t.type !== 'device') { return S_BIG; }
+    if (d && d.kind === 'climate' && d.stepper) { return S_BIG; }
+    if (d && d.kind === 'scene') { return S_HALF; }
+    return S_DEV;
+  }
+  function canHalf(t) { return sizesFor(t)[0][1] === 0.5; }
+  function cat(d) {
+    if (d.kind === 'scene') { return 'scene'; }
+    if (d.kind === 'light') { return 'light'; }
+    return 'device';
+  }
+
   /* ---------------------------------------------------------- tekenen */
+  function roomByKey(key) {
+    var i, rs = (state && state.rooms) || [];
+    for (i = 0; i < rs.length; i++) { if (rs[i].key === key) { return rs[i]; } }
+    return null;
+  }
   function label(t) {
-    var d;
+    var d, r;
     if (t.type === 'clock') { return { name: 'Klok', kind: t.variant === 'digital' ? 'Digitaal' : 'Analoog', icon: ICON.clock }; }
     if (t.type === 'weather') { return { name: 'Weer', kind: 'Widget', icon: ICON.weather }; }
     if (t.type === 'nowplaying') { return { name: 'Nu speelt', kind: 'Sonos', icon: ICON.nowplaying }; }
     if (t.type === 'atv') { return { name: (state.atv && state.atv.name) || 'Apple TV', kind: 'Apple TV', icon: ICON.tvset }; }
+    if (t.type === 'room') {
+      r = roomByKey(t.ref);
+      return r ? { name: r.name, kind: r.zone ? 'Zone' : 'Kamer', icon: ICON.room } : { name: 'Kamer niet gevonden', kind: 'Verwijder of vervang', icon: ICON.room, missing: true };
+    }
     d = tileById[t.ref];
     if (!d) { return { name: 'Niet gevonden', kind: 'Verwijder of vervang', icon: ICON.sensor, missing: true }; }
-    return { name: d.name === 'Alle lampen' ? d.room : d.name, kind: d.name === 'Alle lampen' ? 'Alle lampen' : (d.room || ''), icon: d.type === 'HueGroup' ? ICON.group : (ICON[d.kind] || ICON['switch']), on: d.on, scene: d.kind === 'scene' };
+    return { name: d.name === 'Alle lampen' ? d.room : d.name, kind: d.name === 'Alle lampen' ? 'Alle lampen' : (d.isGroup ? 'Groep' : (d.room || '')), icon: d.type === 'HueGroup' || d.isGroup ? ICON.group : (ICON[d.kind] || ICON['switch']), on: d.on, scene: d.kind === 'scene' };
+  }
+  function pageName() { return cur < 0 ? 'Beginscherm' : pages[cur].name; }
+  function drawTabs() {
+    var b = $('tabs');
+    b.innerHTML = '';
+    function tab(name, idx) {
+      var e = el('div', 'ed-tab' + (idx === cur ? ' is-on' : ''));
+      txt(e, name);
+      tap(e, function () { switchTo(idx); });
+      b.appendChild(e);
+    }
+    tab('Beginscherm', -1);
+    pages.forEach(function (p, i) { tab(p.name, i); });
+    var add = el('div', 'ed-tab ed-add');
+    txt(add, '+ Scherm');
+    tap(add, addPage);
+    b.appendChild(add);
+  }
+  function switchTo(idx) {
+    keep();
+    cur = idx; sel = -1; moving = false;
+    tiles = cur < 0 ? home : pages[cur].tiles;
+    draw();
+  }
+  function keep() { if (cur < 0) { home = tiles; } else if (pages[cur]) { pages[cur].tiles = tiles; } }
+  function addPage() {
+    if (pages.length >= 12) { toast('Maximaal 12 eigen schermen.'); return; }
+    var name = window.prompt('Naam van het nieuwe scherm', 'Scherm ' + (pages.length + 1));
+    if (name === null) { return; }
+    name = String(name).replace(/^\s+|\s+$/g, '').slice(0, 40) || 'Scherm ' + (pages.length + 1);
+    keep();
+    pages.push({ id: '', name: name, tiles: [] });
+    dirty = true;
+    switchTo(pages.length - 1);
   }
   function draw() {
     var a = $('area'), g = grid(), G = geom(), x, y, o = occupied(-1);
+    drawTabs();
     a.innerHTML = '';
     for (x = 0; x < g.cols; x++) {
       for (y = 0; y < g.rows * 2; y++) {
@@ -142,10 +211,20 @@
     drawBar();
   }
   function drawBar() {
-    var b = $('bar'), t = tiles[sel], tools, sizes = isScene(t) ? [[1, 0.5], [2, 0.5], [1, 1], [2, 1]] : [[1, 1], [2, 1], [1, 2], [2, 2]];
+    var b = $('bar'), t = tiles[sel], tools;
     b.innerHTML = '';
     if (sel < 0 || !t) {
-      b.appendChild(el('div', 'ed-msg', tiles.length ? 'Tik op een tegel om de grootte te kiezen, te verplaatsen of weg te halen.' : 'Het beginscherm is leeg. Tik op een vak om te beginnen.'));
+      tools = el('div', 'ed-tools');
+      if (cur < 0) {
+        tools.appendChild(btn('Standaardindeling', '', resetHome));
+      } else {
+        tools.appendChild(btn('Naam wijzigen', '', renamePage));
+        tools.appendChild(btn('◀ Naar links', cur > 0 ? '' : 'is-off', function () { movePage(-1); }));
+        tools.appendChild(btn('Naar rechts ▶', cur < pages.length - 1 ? '' : 'is-off', function () { movePage(1); }));
+        tools.appendChild(btn('Scherm verwijderen', 'danger', removePage));
+      }
+      b.appendChild(tools);
+      b.appendChild(el('div', 'ed-msg ed-msg-small', tiles.length ? 'Tik op een tegel om hem aan te passen, of op een leeg vak om iets toe te voegen.' : pageName() + ' is leeg. Tik op een vak om te beginnen.'));
       return;
     }
     if (moving) {
@@ -157,7 +236,7 @@
       return;
     }
     tools = el('div', 'ed-tools');
-    sizes.forEach(function (s) {
+    sizesFor(t).forEach(function (s) {
       var ok = fits(t.x, t.y, s[0], s[1], sel), on = t.w === s[0] && t.h === s[1];
       tools.appendChild(btn(sizeLabel(s[0], s[1]), on ? 'is-on' : (ok ? '' : 'is-off'), function () {
         if (!ok || on) { if (!ok) { toast('Past hier niet; verplaats de tegel eerst of maak ruimte.'); } return; }
@@ -172,9 +251,37 @@
     b.appendChild(tools);
   }
   function sizeLabel(w, h) { return w + '×' + (h === 0.5 ? '½' : h); }
-  /* Scènes en lampen kunnen een halve tegel hoog. */
-  function isScene(t) { var d = t && t.type === 'device' && tileById[t.ref]; return !!(d && (d.kind === 'scene' || d.kind === 'light')); }
-  function btn(label2, cls, fn) { var e = el('div', 'ed-tool' + (cls ? ' ' + cls : '')); txt(e, label2); tap(e, fn); return e; }
+  function btn(label2, cls, fn) { var e = el('div', 'ed-tool' + (cls ? ' ' + cls : '')); txt(e, label2); tap(e, function () { if (/is-off/.test(e.className) && cls === 'is-off') { return; } fn(); }); return e; }
+
+  /* ------------------------------------------------------------ schermen */
+  function renamePage() {
+    var name = window.prompt('Nieuwe naam', pages[cur].name);
+    if (name === null) { return; }
+    name = String(name).replace(/^\s+|\s+$/g, '').slice(0, 40);
+    if (!name) { return; }
+    pages[cur].name = name; dirty = true; draw();
+  }
+  function movePage(d) {
+    var j = cur + d, p;
+    if (j < 0 || j >= pages.length) { return; }
+    keep();
+    p = pages[cur]; pages[cur] = pages[j]; pages[j] = p;
+    cur = j; dirty = true; draw();
+  }
+  function removePage() {
+    if (!window.confirm('Het scherm "' + pages[cur].name + '" verwijderen?')) { return; }
+    pages.splice(cur, 1);
+    dirty = true;
+    cur = -1; tiles = home; sel = -1;
+    draw();
+  }
+  function resetHome() {
+    if (!window.confirm('Het beginscherm terugzetten naar de standaardindeling?')) { return; }
+    api('POST', 'api/layout', { home: null }, function (err) {
+      if (err) { toast(err); return; }
+      api('GET', 'api/state?t=' + Date.now(), null, function (e2, d) { if (!e2) { home = JSON.parse(JSON.stringify(d.layout.home)); if (cur < 0) { tiles = home; } sel = -1; draw(); } });
+    });
+  }
 
   /* ------------------------------------------------------------ acties */
   /* Wisselen: twee tegels ruilen van plek, als ze daarna allebei passen. */
@@ -200,11 +307,11 @@
     draw();
   }
   function cellTap(x, y, ch) {
-    var t = tiles[sel], small = isScene(t) ? 0.5 : 1;
+    var t = tiles[sel], small = t && canHalf(t) ? 0.5 : 1;
     if (moving && t) {
       if (fits(x, y, t.w, t.h, sel)) { t.x = x; t.y = y; }
       else if (fits(x, y, 1, small, sel)) { t.x = x; t.y = y; t.w = 1; t.h = small; toast('Te groot voor die plek; de tegel is nu ' + sizeLabel(1, small) + '.'); }
-      else { toast('Hier past alleen een scène of lamp (halve hoogte).'); }
+      else { toast('Deze tegel past niet in een half vak.'); }
       moving = false; dirty = true; draw();
       return;
     }
@@ -212,15 +319,16 @@
     target = { x: x, y: y, half: ch === 0.5 };
     openPicker();
   }
+  /* Nieuwe tegel op het gekozen vak, in een passend standaardformaat. */
   function place(item) {
-    var x = target.x, y = target.y, w = 1, h = 1;
-    if (item.scene) { h = 0.5; }
-    else if (target.half) { toast('Hier past alleen een scène of lamp (halve hoogte).'); return; }
-    delete item.scene;
-    if (item.type === 'nowplaying' || item.type === 'weather' || item.type === 'atv') { if (fits(x, y, 2, 1, -1)) { w = 2; } }
-    if (item.big) { if (fits(x, y, 2, 2, -1)) { w = 2; h = 2; } else if (fits(x, y, 1, 2, -1)) { h = 2; } }
+    var x = target.x, y = target.y, d = devOf(item), w = 1, h = 1;
+    var halfFirst = item.type === 'device' && d && (d.kind === 'scene' || d.kind === 'light');
+    if (target.half && !canHalf(item)) { toast('Hier past alleen een tegel van halve hoogte.'); return; }
+    if (target.half || halfFirst) { h = 0.5; }
+    else if (item.type === 'nowplaying' || item.type === 'weather' || item.type === 'atv') { if (fits(x, y, 2, 1, -1)) { w = 2; } }
+    else if (d && d.kind === 'climate' && d.stepper) { if (fits(x, y, 2, 2, -1)) { w = 2; h = 2; } else if (fits(x, y, 2, 1, -1)) { w = 2; } }
+    if (!fits(x, y, w, h, -1)) { w = 1; h = canHalf(item) && !fits(x, y, 1, 1, -1) ? 0.5 : 1; }
     item.x = x; item.y = y; item.w = w; item.h = h;
-    delete item.big;
     tiles.push(item);
     sel = tiles.length - 1;
     dirty = true;
@@ -229,27 +337,70 @@
   }
 
   /* ------------------------------------------------------------ kiezer */
+  /* Eerst een soort kiezen, dan een korte lijst van alleen die soort. */
+  function used() { var u = {}; tiles.forEach(function (t) { if (t.ref) { u[t.ref] = true; } }); return u; }
+  function roomsSorted() { var rs = state.rooms || []; return rs.filter(function (r) { return !r.zone; }).concat(rs.filter(function (r) { return r.zone; })); }
+  function count(kind) {
+    var n = 0, seen = {};
+    roomsSorted().forEach(function (r) { r.tiles.forEach(function (d) { if (!seen[d.id] && cat(d) === kind) { seen[d.id] = true; n++; } }); });
+    return n;
+  }
   function openPicker() {
-    var list = $('pk-list'), used = {}, rooms = (state.rooms || []).filter(function (r) { return !r.zone; }).concat((state.rooms || []).filter(function (r) { return r.zone; }));
-    tiles.forEach(function (t) { if (t.ref) { used[t.ref] = true; } });
+    var list = $('pk-list');
+    $('pk-box').className = 'pk-box';
+    txt($('pk-title'), 'Wat komt hier?');
     list.innerHTML = '';
-    list.appendChild(txt(el('div', 'pk-group'), 'Widgets'));
+    category(list, ICON.light, 'Lampen', count('light'), function () { showKind('light', 'Lampen'); });
+    category(list, ICON.scene, 'Scènes', count('scene'), function () { showKind('scene', 'Scènes'); });
+    category(list, ICON['switch'], 'Schakelaars en apparaten', count('device'), function () { showKind('device', 'Schakelaars en apparaten'); });
+    category(list, ICON.room, 'Kamers', (state.rooms || []).length, showRooms);
+    category(list, ICON.clock, 'Widgets', '', showWidgets);
+    list.scrollTop = 0;
+    $('picker').className = 'is-shown';
+  }
+  function category(list, icon, name, n, fn) {
+    var e = el('div', 'pk-cat', icon + '<span></span>' + (n !== '' ? '<small></small>' : ''));
+    txt(e.children[1], name);
+    if (n !== '') { txt(e.children[2], n + (n === 1 ? ' keuze' : ' keuzes')); }
+    tap(e, fn);
+    list.appendChild(e);
+  }
+  function sub(title) {
+    var list = $('pk-list');
+    $('pk-box').className = 'pk-box is-sub';
+    txt($('pk-title'), title);
+    list.innerHTML = '';
+    list.scrollTop = 0;
+    return list;
+  }
+  function showKind(kind, title) {
+    var list = sub(title), u = used(), seen = {};
+    roomsSorted().forEach(function (r) {
+      var ds = r.tiles.filter(function (d) { return cat(d) === kind && !seen[d.id]; });
+      if (!ds.length) { return; }
+      list.appendChild(txt(el('div', 'pk-group'), r.name + (r.zone ? ' (zone)' : '')));
+      ds.forEach(function (d) {
+        seen[d.id] = true;
+        var ic = d.type === 'HueGroup' || d.isGroup ? ICON.group : (ICON[d.kind] || ICON['switch']);
+        var small = d.isGroup ? 'groep' : (d.kind === 'climate' ? 'thermostaat' : (d.readonly ? 'sensor' : ''));
+        item(list, ic, d.name === 'Alle lampen' ? 'Alle lampen in ' + r.name : d.name, small, u[d.id], function () { place({ type: 'device', ref: d.id }); });
+      });
+    });
+    if (!list.children.length) { list.appendChild(txt(el('div', 'pk-group'), 'Niets gevonden')); }
+  }
+  function showRooms() {
+    var list = sub('Kamers'), u = used();
+    roomsSorted().forEach(function (r) {
+      item(list, ICON.room, r.name, r.zone ? 'zone' : '', u[r.key], function () { place({ type: 'room', ref: r.key }); });
+    });
+  }
+  function showWidgets() {
+    var list = sub('Widgets');
     item(list, ICON.clock, 'Klok', 'analoog', false, function () { place({ type: 'clock', variant: 'analog' }); });
     item(list, ICON.clock, 'Klok', 'digitaal', false, function () { place({ type: 'clock', variant: 'digital' }); });
     item(list, ICON.weather, 'Weer', '', false, function () { place({ type: 'weather' }); });
     item(list, ICON.nowplaying, 'Nu speelt', 'Sonos', false, function () { place({ type: 'nowplaying' }); });
     if (state.atv) { item(list, ICON.tvset, 'Apple TV', state.atv.name, false, function () { place({ type: 'atv' }); }); }
-    rooms.forEach(function (r) {
-      if (!r.tiles.length) { return; }
-      list.appendChild(txt(el('div', 'pk-group'), r.name + (r.zone ? ' (zone)' : '')));
-      r.tiles.forEach(function (d) {
-        var ic = d.type === 'HueGroup' ? ICON.group : (ICON[d.kind] || ICON['switch']);
-        var kindTxt = d.kind === 'scene' ? 'scène' : d.kind === 'climate' ? 'thermostaat' : (d.readonly ? 'sensor' : '');
-        item(list, ic, d.name, kindTxt, used[d.id], function () { place({ type: 'device', ref: d.id, big: d.kind === 'climate' && !!d.stepper, scene: d.kind === 'scene' || d.kind === 'light' }); });
-      });
-    });
-    list.scrollTop = 0;
-    $('picker').className = 'is-shown';
   }
   function item(list, icon, name, small, isUsed, fn) {
     var e = el('div', 'pk-item' + (isUsed ? ' is-used' : ''), icon + '<span></span>' + (small ? '<small></small>' : ''));
@@ -262,7 +413,8 @@
 
   /* ------------------------------------------------------------ opslaan */
   function save() {
-    api('POST', 'api/layout', { home: tiles }, function (err) {
+    keep();
+    api('POST', 'api/layout', { home: home, pages: pages }, function (err) {
       if (err) { toast(err); return; }
       dirty = false;
       window.location.href = backUrl();
@@ -270,10 +422,18 @@
   }
   function start() {
     api('GET', 'api/state?t=' + Date.now(), null, function (err, d) {
+      var want = (/[?&]scherm=([^&]+)/.exec(window.location.search) || [])[1], i;
       if (err) { toast(err); return; }
       state = d;
       (d.rooms || []).forEach(function (r) { r.tiles.forEach(function (t) { if (!tileById[t.id]) { tileById[t.id] = t; } }); });
-      tiles = JSON.parse(JSON.stringify((d.layout && d.layout.home) || []));
+      home = JSON.parse(JSON.stringify((d.layout && d.layout.home) || []));
+      pages = JSON.parse(JSON.stringify((d.layout && d.layout.pages) || []));
+      cur = -1;
+      if (want && want.indexOf('page%3A') === 0) { want = 'page:' + want.slice(7); }
+      for (i = 0; i < pages.length; i++) { if ('page:' + pages[i].id === want) { cur = i; } }
+      tiles = cur < 0 ? home : pages[cur].tiles;
+      /* Overgezette schermen (zoals 'Kamers') bestaan pas echt na opslaan. */
+      if (!d.layout.pagesSaved && pages.length) { dirty = true; }
       document.body.className = 'theme-' + ((d.layout && d.layout.theme) || 'warm') + (isDark(d.layout) ? ' mode-dark' : '');
       try { window.localStorage.setItem('hp-theme', document.body.className); } catch (e) { /* privémodus */ }
       draw();
@@ -283,14 +443,8 @@
       if (dirty && !window.confirm('Wijzigingen weggooien?')) { return; }
       window.location.href = backUrl();
     });
-    tap($('reset'), function () {
-      if (!window.confirm('Terug naar de standaardindeling?')) { return; }
-      api('POST', 'api/layout', { home: null }, function (err) {
-        if (err) { toast(err); return; }
-        api('GET', 'api/state?t=' + Date.now(), null, function (e2, d) { if (!e2) { tiles = JSON.parse(JSON.stringify(d.layout.home)); sel = -1; dirty = false; draw(); } });
-      });
-    });
     tap($('pk-close'), closePicker);
+    tap($('pk-back'), openPicker);
     $('picker').addEventListener('click', function (e) { if (e.target === $('picker')) { closePicker(); } }, false);
     window.addEventListener('resize', draw, false);
     window.addEventListener('orientationchange', function () { setTimeout(draw, 300); }, false);

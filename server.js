@@ -39,6 +39,7 @@ function loadConfig() {
   cfg.weather = Object.assign({ latitude: null, longitude: null, place: '' }, cfg.weather || {});
   cfg.hue = Object.assign({ host: '', key: '', name: '' }, cfg.hue || {});
   cfg.atv = Object.assign({ id: '', name: '' }, cfg.atv || {});
+  cfg.groups = Array.isArray(cfg.groups) ? cfg.groups : [];
   cfg.update = Object.assign({ auto: false, repo: 'BlueCashew/homepanel', branch: 'main' }, cfg.update || {});
   cfg.layout = Object.assign({ theme: 'warm', mode: 'light', schedule: 'sun', darkFrom: '21:00', darkTo: '07:00', home: null, screens: null }, cfg.layout || {});
   cfg.hide = cfg.hide || [];
@@ -48,7 +49,7 @@ const config = loadConfig();
 const LISTEN_PORT = Number(process.env.HUISPANEEL_PORT) || config.port;
 function saveConfig() {
   if (SELFTEST || DEMO) return;
-  const out = { port: config.port, homebridge: config.homebridge, hue: config.hue, atv: config.atv, sonos: config.sonos, weather: config.weather, update: config.update, layout: config.layout, hide: config.hide };
+  const out = { port: config.port, homebridge: config.homebridge, hue: config.hue, atv: config.atv, groups: config.groups, sonos: config.sonos, weather: config.weather, update: config.update, layout: config.layout, hide: config.hide };
   fs.writeFileSync(CONFIG_FILE, JSON.stringify(out, null, 2) + '\n', { mode: 0o600 });
   try { fs.chmodSync(CONFIG_FILE, 0o600); } catch (e) { /* niet erg */ }
 }
@@ -902,22 +903,23 @@ const MODES = ['light', 'dark', 'auto'];
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 /* Controleert een indeling: binnen het raster, niets over elkaar heen, alleen bekende soorten tegels. */
+const TILE_TYPES = ['device', 'clock', 'weather', 'nowplaying', 'atv', 'room'];
 function cleanHome(tiles) {
   if (!Array.isArray(tiles)) throw new Error('Ongeldige indeling');
   // Rijen werken in halve stappen: scènes kunnen een halve tegel hoog zijn.
   const used = {};
   const out = [];
   tiles.slice(0, GRID.cols * GRID.rows * 2).forEach((t) => {
-    if (!t || ['device', 'clock', 'weather', 'nowplaying', 'atv'].indexOf(t.type) === -1) return;
+    if (!t || TILE_TYPES.indexOf(t.type) === -1) return;
     const w = t.w === 2 ? 2 : 1;
-    const h = t.h === 2 ? 2 : (t.h === 0.5 && t.type === 'device' ? 0.5 : 1);
+    const h = t.h === 2 ? 2 : (t.h === 0.5 && (t.type === 'device' || t.type === 'room') ? 0.5 : 1);
     const x = Math.floor(Number(t.x)), y2 = Math.floor(Number(t.y) * 2), h2 = h * 2;
     if (!(x >= 0 && y2 >= 0 && x + w <= GRID.cols && y2 + h2 <= GRID.rows * 2)) return;
-    if (t.type === 'device' && (typeof t.ref !== 'string' || !t.ref || t.ref.length > 200)) return;
+    if ((t.type === 'device' || t.type === 'room') && (typeof t.ref !== 'string' || !t.ref || t.ref.length > 200)) return;
     for (let i = x; i < x + w; i++) for (let j = y2; j < y2 + h2; j++) if (used[i + ',' + j]) return;
     for (let i = x; i < x + w; i++) for (let j = y2; j < y2 + h2; j++) used[i + ',' + j] = true;
     const c = { type: t.type, x, y: y2 / 2, w, h };
-    if (t.type === 'device') c.ref = t.ref;
+    if (t.type === 'device' || t.type === 'room') c.ref = t.ref;
     if (t.type === 'clock') c.variant = t.variant === 'digital' ? 'digital' : 'analog';
     out.push(c);
   });
@@ -978,6 +980,33 @@ function screensOut(rooms) {
   return out;
 }
 
+/* Eigen schermen: elk een naam en een eigen raster met tegels, net als het beginscherm. */
+function cleanPages(list) {
+  if (!Array.isArray(list)) throw new Error('Ongeldige schermen');
+  const seen = {};
+  return list.slice(0, 12).map((p, i) => {
+    if (!p || typeof p !== 'object') throw new Error('Ongeldig scherm');
+    let id = typeof p.id === 'string' && /^[a-z0-9]{1,16}$/.test(p.id) && !seen[p.id] ? p.id : '';
+    while (!id || seen[id]) id = 'p' + crypto.randomBytes(4).toString('hex');
+    seen[id] = true;
+    const name = String(p.name || '').trim().slice(0, 40) || 'Scherm ' + (i + 1);
+    return { id, name, tiles: cleanHome(Array.isArray(p.tiles) ? p.tiles : []) };
+  });
+}
+/* Eerste keer na de overstap: de kamerschermen die aan stonden, worden kamerknoppen op een scherm 'Kamers'. */
+function defaultPages(rooms) {
+  const saved = Array.isArray(config.layout.screens) ? config.layout.screens : null;
+  const keys = saved ? saved.filter((x) => x.on && x.key !== 'clock' && x.key !== 'atv').map((x) => x.key)
+    : rooms.filter((r) => !r.zone).map((r) => r.key);
+  const have = {};
+  rooms.forEach((r) => { have[r.key] = true; });
+  const list = keys.filter((k) => have[k]);
+  const half = list.length > GRID.cols * GRID.rows; // veel kamers: knoppen van halve hoogte, twee per vak
+  const tiles = list.slice(0, GRID.cols * GRID.rows * (half ? 2 : 1))
+    .map((k, i) => ({ type: 'room', ref: k, x: i % GRID.cols, y: half ? Math.floor(i / GRID.cols) / 2 : Math.floor(i / GRID.cols), w: 1, h: half ? 0.5 : 1 }));
+  return tiles.length ? [{ id: 'kamers', name: 'Kamers', tiles }] : [];
+}
+
 function layoutOut(rooms) {
   return {
     theme: THEMES.indexOf(config.layout.theme) === -1 ? 'warm' : config.layout.theme,
@@ -988,13 +1017,17 @@ function layoutOut(rooms) {
     grid: GRID,
     home: Array.isArray(config.layout.home) ? config.layout.home : defaultHome(rooms),
     custom: Array.isArray(config.layout.home),
-    screens: screensOut(rooms),
+    pages: Array.isArray(config.layout.pages) ? config.layout.pages : defaultPages(rooms),
+    pagesSaved: Array.isArray(config.layout.pages),
+    groups: config.groups,
   };
 }
 
 function saveLayout(b) {
   if (b.home !== undefined) config.layout.home = b.home === null ? null : cleanHome(b.home);
   if (b.screens !== undefined) config.layout.screens = cleanScreens(b.screens);
+  if (b.pages !== undefined) config.layout.pages = b.pages === null ? null : cleanPages(b.pages);
+  if (b.groups !== undefined) config.groups = cleanGroups(b.groups);
   if (b.theme !== undefined) {
     if (THEMES.indexOf(b.theme) === -1) throw new Error('Onbekend thema');
     config.layout.theme = b.theme;
@@ -1010,6 +1043,74 @@ function saveLayout(b) {
   config.layout.darkFrom = from;
   config.layout.darkTo = to;
   saveConfig();
+}
+
+/* ------------------------------------------------------------- lampgroepen */
+/* Een groep (bijv. 'Plafond spots') werkt in het paneel als één lamp. De losse lampen verdwijnen
+   uit de kamers; op hun plek staat de groep. Schakelen gaat naar elke lamp in de groep. */
+function cleanGroups(list) {
+  if (!Array.isArray(list)) throw new Error('Ongeldige groepen');
+  const seen = {};
+  return list.slice(0, 50).map((g, i) => {
+    if (!g || typeof g !== 'object') throw new Error('Ongeldige groep');
+    let id = typeof g.id === 'string' && /^[a-z0-9]{1,16}$/.test(g.id) && !seen[g.id] ? g.id : '';
+    while (!id || seen[id]) id = 'g' + crypto.randomBytes(4).toString('hex');
+    seen[id] = true;
+    const name = String(g.name || '').trim().slice(0, 40);
+    if (!name) throw new Error('Geef groep ' + (i + 1) + ' een naam');
+    const m = {};
+    const members = (Array.isArray(g.members) ? g.members : []).filter((x) => typeof x === 'string' && x && x.length <= 200 && !/^grp:/.test(x) && !m[x] && (m[x] = true)).slice(0, 40);
+    if (members.length < 2) throw new Error('Kies minstens twee lampen voor ' + name);
+    return { id, name, members };
+  });
+}
+const groupMembers = {}; // laatst geziene lampen per groep, voor het schakelen
+function applyGroups(rooms) {
+  const all = {};
+  rooms.forEach((r) => r.tiles.forEach((t) => { if (t.kind === 'light' && !all[t.id]) all[t.id] = t; }));
+  const lights = Object.keys(all).map((id) => ({ id, name: all[id].name, room: all[id].room || '' }));
+  (config.groups || []).forEach((g) => {
+    const ms = g.members.map((id) => all[id]).filter(Boolean);
+    groupMembers[g.id] = ms;
+    if (!ms.length) return;
+    const on = ms.filter((t) => t.on && !t.fault);
+    const lv = (on.length ? on : ms).filter((t) => typeof t.level === 'number');
+    const gt = { id: 'grp:' + g.id, name: g.name, type: 'Group', kind: 'light', isGroup: true, members: ms.length, char: 'on', onValue: true, offValue: false, on: on.length > 0 };
+    if (lv.length) { gt.level = Math.round(lv.reduce((a, t) => a + t.level, 0) / lv.length); gt.levelChar = 'level'; }
+    const cts = ms.filter((t) => t.ctChar && typeof t.ct === 'number');
+    if (ms.some((t) => t.ctChar)) { gt.ctChar = 'ct'; gt.ct = cts.length ? Math.round(cts.reduce((a, t) => a + t.ct, 0) / cts.length) : null; }
+    if (ms.every((t) => t.fault)) gt.fault = true;
+    gt.text = gt.fault ? 'Geen contact' : (gt.on ? (gt.level !== undefined ? gt.level + '%' : 'Aan') : 'Uit');
+    const ids = {};
+    g.members.forEach((id) => { ids[id] = true; });
+    rooms.forEach((r) => {
+      const at = r.tiles.findIndex((t) => ids[t.id]);
+      if (at === -1) return;
+      r.tiles = r.tiles.filter((t) => !ids[t.id]);
+      r.tiles.splice(at, 0, gt);
+    });
+    if (!gt.room) gt.room = (ms[0] && ms[0].room) || '';
+  });
+  return lights;
+}
+async function setOne(id, char, value) {
+  if (DEMO) return demoSet(id, char, value);
+  if (id.indexOf('hue:') === 0) return hueSet(id, char, value);
+  return hbSet(id, char, value);
+}
+async function groupSet(id, char, value) {
+  const ms = groupMembers[id.slice(4)];
+  if (!ms || !ms.length) throw new Error('Groep niet gevonden');
+  const jobs = ms.map((t) => {
+    if (char === 'on') return setOne(t.id, t.char, value ? t.onValue : t.offValue);
+    if (char === 'level') return t.levelChar ? setOne(t.id, t.levelChar, Number(value)) : setOne(t.id, t.char, Number(value) > 0 ? t.onValue : t.offValue);
+    if (char === 'ct') return t.ctChar ? setOne(t.id, t.ctChar, Number(value)) : Promise.resolve();
+    return Promise.reject(new Error('Onbekende bediening'));
+  });
+  const res = await Promise.all(jobs.map((p) => p.then(() => null, (e) => e)));
+  const bad = res.filter(Boolean);
+  if (bad.length === res.length) throw bad[0];
+  if (bad.length) throw new Error(bad.length + ' van de ' + res.length + ' lampen reageerden niet');
 }
 
 /* ---------------------------------------------------------------- update */
@@ -1548,7 +1649,9 @@ async function getState() {
   if (DEMO) {
     demo.rooms.forEach((r) => r.tiles.forEach((t) => { t.text = demoText(t); }));
     demo.rooms.forEach((r) => { r.key = r.key || 'hb:' + r.name; r.tiles.forEach((t) => { t.room = r.name; }); });
-    return { ok: true, demo: true, time: Date.now(), version: 'demo', homebridge: { ok: true }, rooms: demo.rooms, sonos: demo.sonos, weather: demo.weather, layout: layoutOut(demo.rooms), favorites: demo.favorites, atv: demo.atv };
+    const rooms = demo.rooms.map((r) => Object.assign({}, r, { tiles: r.tiles.slice() }));
+    const lights = applyGroups(rooms);
+    return { ok: true, demo: true, time: Date.now(), version: 'demo', homebridge: { ok: true }, rooms, lights, sonos: demo.sonos, weather: demo.weather, layout: layoutOut(rooms), favorites: demo.favorites, atv: demo.atv };
   }
   weatherTick();
   const out = { ok: true, time: Date.now(), version: currentVersion(), homebridge: { ok: true }, rooms: [], sonos: null, weather: weather.data };
@@ -1579,6 +1682,7 @@ async function getState() {
   out.rooms.filter((r) => !r.zone).concat(out.rooms.filter((r) => r.zone)).forEach((r) => {
     r.tiles.forEach((t) => { if (!t.room) t.room = r.name; });
   });
+  out.lights = applyGroups(out.rooms);
   out.layout = layoutOut(out.rooms);
   out.atv = atvOut();
   if (config.sonos.enabled) {
@@ -1619,9 +1723,8 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && u.pathname === '/api/set') {
       const b = await readBody(req);
       if (typeof b.id !== 'string' || typeof b.char !== 'string' || ['boolean', 'number'].indexOf(typeof b.value) === -1) return json(res, 400, { ok: false, error: 'ongeldig verzoek' });
-      if (DEMO) demoSet(b.id, b.char, b.value);
-      else if (b.id.indexOf('hue:') === 0) await hueSet(b.id, b.char, b.value);
-      else await hbSet(b.id, b.char, b.value);
+      if (b.id.indexOf('grp:') === 0) await groupSet(b.id, b.char, b.value);
+      else await setOne(b.id, b.char, b.value);
       return json(res, 200, { ok: true });
     }
     if (u.pathname === '/api/setup' && !DEMO) {
