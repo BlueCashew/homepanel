@@ -90,13 +90,17 @@ html, body {
 .room-tiles .tile.s-1xh { height: 70px; }
 
 /* --------------------------------- scènes: pilvorm, halve hoogte, kleur van het thema */
-.s-1xh, .s-2xh { border-radius: 60px; }
+.k-scene.s-1xh, .k-scene.s-2xh { border-radius: 60px; }
+.s-1xh, .s-2xh { border-radius: 20px; }
 .s-1xh .t-icon, .s-2xh .t-icon { left: 22px; top: 50%; margin-top: -15px; width: 30px; height: 30px; }
 .s-1xh .t-name, .s-2xh .t-name { left: 66px; right: 22px; top: 50%; bottom: auto; margin-top: -21px; font-size: 17px; line-height: 22px; max-height: 22px; white-space: nowrap; text-overflow: ellipsis; }
 .s-1xh .t-sub, .s-2xh .t-sub { left: 66px; right: 22px; top: 50%; bottom: auto; margin-top: 2px; font-size: 13px; line-height: 18px; }
 .s-1xh .t-state, .s-2xh .t-state { display: none; }
-.room-tiles .s-1xh .t-name { top: 50%; bottom: auto; margin-top: -11px; font-size: 17px; line-height: 22px; max-height: 22px; }
-.room-tiles .s-1xh .t-sub { display: none; }
+/* Op een kamerscherm staat de kamer al bovenaan: bij scènes alleen de naam. Lampen houden hun stand eronder. */
+.room-tiles .k-scene.s-1xh .t-name { top: 50%; bottom: auto; margin-top: -11px; font-size: 17px; line-height: 22px; max-height: 22px; }
+.room-tiles .k-scene.s-1xh .t-sub { display: none; }
+.room-tiles .s-1xh .t-name { margin-top: -20px; }
+.room-tiles .s-1xh .t-sub { margin-top: 1px; }
 .room-tiles .t-name { font-size: 17px; line-height: 21px; max-height: 42px; bottom: 38px; }
 
 /* ------------------------------------------------------------- muziek */

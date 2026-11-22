@@ -929,10 +929,11 @@ function defaultHome(rooms) {
   const picks = all.filter((t) => t !== thermo && !t.readonly && (t.name === 'Alle lampen' || t.kind === 'switch' || t.kind === 'scene'));
   const seen = {};
   const uniq = picks.filter((t) => !seen[t.id] && (seen[t.id] = true));
-  // Gewone tegels eerst, scènes daarna als halve tegels (twee per vak).
+  // Gewone tegels eerst, scènes en lampen daarna als halve tegels (twee per vak).
   let col = 0, half = 0;
-  uniq.filter((t) => t.kind !== 'scene').slice(0, uniq.some((t) => t.kind === 'scene') ? 2 : 4).forEach((t) => tiles.push({ type: 'device', ref: t.id, x: col++, y: 2, w: 1, h: 1 }));
-  uniq.filter((t) => t.kind === 'scene').forEach((t) => {
+  const isHalf = (t) => t.kind === 'scene' || t.kind === 'light';
+  uniq.filter((t) => !isHalf(t)).slice(0, uniq.some(isHalf) ? 2 : 4).forEach((t) => tiles.push({ type: 'device', ref: t.id, x: col++, y: 2, w: 1, h: 1 }));
+  uniq.filter(isHalf).forEach((t) => {
     if (col >= GRID.cols) return;
     tiles.push({ type: 'device', ref: t.id, x: col, y: 2 + half * 0.5, w: 1, h: 0.5 });
     if (half) { col++; half = 0; } else half = 1;

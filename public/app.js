@@ -475,20 +475,19 @@
       r.tiles.forEach(function (t) { if (t.kind === 'light' && t.type !== 'HueGroup' && shown(t).on) { on++; } });
       setText(f.children[1], on ? on + (on === 1 ? ' lamp aan' : ' lampen aan') : 'Alles uit');
     } });
-    /* Scènes bovenaan als rij halve knoppen, daarna de rest. */
-    var box = f.children[2], n = 0, scenes = room.tiles.filter(function (t) { return t.kind === 'scene'; });
-    scenes.forEach(function (t, i) {
-      var e = makeDevice(t.id, '1xh', true);
-      if (i % 5 === 4) { e.className += ' endrow'; e.setAttribute('data-end', '1'); }
-      box.appendChild(e);
-    });
-    if (scenes.length) { box.appendChild(el('div', 'rowbreak')); }
-    room.tiles.forEach(function (t) {
-      if (t.kind === 'scene') { return; }
-      var e = t.kind === 'climate' && t.stepper ? makeThermo(t.id, '1x1') : makeDevice(t.id, '1x1', true);
-      if (n++ % 5 === 4) { e.className += ' endrow'; e.setAttribute('data-end', '1'); }
-      box.appendChild(e);
-    });
+    /* Eerst de scènes, dan de lampen (allebei halve hoogte), dan de rest. Elke groep begint op een nieuwe rij. */
+    var box = f.children[2];
+    function group(list, size) {
+      list.forEach(function (t, i) {
+        var e = size === '1x1' && t.kind === 'climate' && t.stepper ? makeThermo(t.id, '1x1') : makeDevice(t.id, size, true);
+        if (i % 5 === 4) { e.className += ' endrow'; e.setAttribute('data-end', '1'); }
+        box.appendChild(e);
+      });
+      if (list.length) { box.appendChild(el('div', 'rowbreak')); }
+    }
+    group(room.tiles.filter(function (t) { return t.kind === 'scene'; }), '1xh');
+    group(room.tiles.filter(function (t) { return t.kind === 'light'; }), '1xh');
+    group(room.tiles.filter(function (t) { return t.kind !== 'scene' && t.kind !== 'light'; }), '1x1');
     return f;
   }
 

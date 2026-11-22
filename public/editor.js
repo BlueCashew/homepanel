@@ -172,7 +172,8 @@
     b.appendChild(tools);
   }
   function sizeLabel(w, h) { return w + '×' + (h === 0.5 ? '½' : h); }
-  function isScene(t) { var d = t && t.type === 'device' && tileById[t.ref]; return !!(d && d.kind === 'scene'); }
+  /* Scènes en lampen kunnen een halve tegel hoog. */
+  function isScene(t) { var d = t && t.type === 'device' && tileById[t.ref]; return !!(d && (d.kind === 'scene' || d.kind === 'light')); }
   function btn(label2, cls, fn) { var e = el('div', 'ed-tool' + (cls ? ' ' + cls : '')); txt(e, label2); tap(e, fn); return e; }
 
   /* ------------------------------------------------------------ acties */
@@ -203,7 +204,7 @@
     if (moving && t) {
       if (fits(x, y, t.w, t.h, sel)) { t.x = x; t.y = y; }
       else if (fits(x, y, 1, small, sel)) { t.x = x; t.y = y; t.w = 1; t.h = small; toast('Te groot voor die plek; de tegel is nu ' + sizeLabel(1, small) + '.'); }
-      else { toast('Hier past alleen een scène (halve hoogte).'); }
+      else { toast('Hier past alleen een scène of lamp (halve hoogte).'); }
       moving = false; dirty = true; draw();
       return;
     }
@@ -214,7 +215,7 @@
   function place(item) {
     var x = target.x, y = target.y, w = 1, h = 1;
     if (item.scene) { h = 0.5; }
-    else if (target.half) { toast('Hier past alleen een scène (halve hoogte).'); return; }
+    else if (target.half) { toast('Hier past alleen een scène of lamp (halve hoogte).'); return; }
     delete item.scene;
     if (item.type === 'nowplaying' || item.type === 'weather' || item.type === 'atv') { if (fits(x, y, 2, 1, -1)) { w = 2; } }
     if (item.big) { if (fits(x, y, 2, 2, -1)) { w = 2; h = 2; } else if (fits(x, y, 1, 2, -1)) { h = 2; } }
@@ -244,7 +245,7 @@
       r.tiles.forEach(function (d) {
         var ic = d.type === 'HueGroup' ? ICON.group : (ICON[d.kind] || ICON['switch']);
         var kindTxt = d.kind === 'scene' ? 'scène' : d.kind === 'climate' ? 'thermostaat' : (d.readonly ? 'sensor' : '');
-        item(list, ic, d.name, kindTxt, used[d.id], function () { place({ type: 'device', ref: d.id, big: d.kind === 'climate' && !!d.stepper, scene: d.kind === 'scene' }); });
+        item(list, ic, d.name, kindTxt, used[d.id], function () { place({ type: 'device', ref: d.id, big: d.kind === 'climate' && !!d.stepper, scene: d.kind === 'scene' || d.kind === 'light' }); });
       });
     });
     list.scrollTop = 0;
