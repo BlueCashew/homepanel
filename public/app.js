@@ -422,7 +422,7 @@
       p = isPlaying();
       if (p !== lastP) { lastP = p; e.children[5].innerHTML = p ? ICON.pause : ICON.play; }
       url = s.art || '';
-      if (url !== lastArt) { lastArt = url; e.children[0].style.backgroundImage = url ? 'url("' + url + '")' : 'none'; e.children[1].style.display = url ? 'none' : ''; }
+      setArt(e.children[0], e.children[1], url);
       setText(e.children[3], s.title || 'Niets aan het spelen');
       setText(e.children[4], s.artist || s.room || '');
     } });
@@ -492,6 +492,17 @@
   }
 
 
+  /* Afbeelding eerst laden; pas tonen als dat lukt. Mislukt het, dan blijft het icoon staan (geen leeg vlak). */
+  function setArt(box, icon, url) {
+    if (box.__art === url) { return; }
+    box.__art = url;
+    if (!url) { box.style.backgroundImage = 'none'; icon.style.display = ''; return; }
+    var img = new Image();
+    img.onload = function () { if (box.__art !== url) { return; } box.style.backgroundImage = 'url("' + url + '")'; icon.style.display = 'none'; };
+    img.onerror = function () { if (box.__art !== url) { return; } box.style.backgroundImage = 'none'; icon.style.display = ''; };
+    img.src = url;
+  }
+
   /* --------------------------------------------------------- apple tv */
   function atvKey(key) { api('POST', 'api/atv', { action: 'key', key: key }, function (err) { if (err) { toast(err); } }); }
   function goFaceKey(key) { var i; for (i = 0; i < faces.length; i++) { if (faces[i].key === key) { goFace(i); return; } } }
@@ -549,7 +560,7 @@
       setText(q('tv-offtext'), a.error || '');
       setText(q('tv-name'), a.name);
       url = a.art || '';
-      if (url !== lastArt) { lastArt = url; q('tv-art').style.backgroundImage = url ? 'url("' + url + '")' : 'none'; q('tv-art').children[0].style.display = url ? 'none' : ''; }
+      setArt(q('tv-art'), q('tv-art').children[0], url);
       setText(q('tv-title'), a.power === 'off' ? 'Staat uit' : (a.title || a.app || 'Apple TV'));
       setText(q('tv-sub'), a.power === 'off' ? a.name : (a.title ? [a.app, a.artist].filter(Boolean).join(' · ') : (a.state === 'idle' ? 'Niets aan het afspelen' : '')));
       setClass(q('tv-pbtn'), 'is-on', a.power === 'on');
@@ -579,7 +590,7 @@
       if (!a) { setText(e.children[3], 'Apple TV'); setText(e.children[4], 'Niet gekoppeld'); e.children[5].style.display = 'none'; return; }
       e.children[5].style.display = a.ok && a.power !== 'off' ? '' : 'none';
       url = a.art || '';
-      if (url !== lastArt) { lastArt = url; e.children[0].style.backgroundImage = url ? 'url("' + url + '")' : 'none'; e.children[1].style.display = url ? 'none' : ''; }
+      setArt(e.children[0], e.children[1], url);
       setText(e.children[3], !a.ok ? a.name : (a.power === 'off' ? a.name : (a.title || a.app || a.name)));
       setText(e.children[4], !a.ok ? 'Niet bereikbaar' : (a.power === 'off' ? 'Staat uit' : (a.title ? [a.app, a.artist].filter(Boolean).join(' · ') : 'Apple TV')));
     } });
@@ -620,7 +631,8 @@
     var f = el('div', 'face face-music',
       '<div class="mu-left"><div class="mu-art"><div class="np-noart">' + ICON.note + '</div></div><div class="mu-title"></div><div class="mu-artist"></div>' +
       '<div class="mu-ctrl"><div class="mu-btn mu-prev">' + ICON.prev + '</div><div class="mu-btn mu-play"></div><div class="mu-btn mu-next">' + ICON.next + '</div></div>' +
-      '<div class="mu-vol"><div class="mu-mute"></div><div class="slider"><div class="slider-fill"></div><div class="slider-knob"></div></div><div class="mu-volnum"></div></div></div>' +
+      '<div class="mu-vol"><div class="mu-mute"></div><div class="mu-btn mu-vdown">' + ICON.minus + '</div><div class="slider"><div class="slider-fill"></div><div class="slider-knob"></div></div>' +
+      '<div class="mu-btn mu-vup">' + ICON.plus + '</div><div class="mu-volnum"></div></div></div>' +
       '<div class="mu-right"><div class="mu-head">Favorieten</div><div class="mu-room"></div><div class="mu-favs scroll"></div></div>');
     var q = function (c) { return f.getElementsByClassName(c)[0]; };
     muEls = { art: q('mu-art'), title: q('mu-title'), artist: q('mu-artist'), play: q('mu-play'), prev: q('mu-prev'), next: q('mu-next'),
@@ -637,8 +649,34 @@
       if (!s || !s.ok) { return; }
       s.mute = !s.mute; sonosCmd('mute', s.mute); paintAll();
     });
+    holdBtn(q('mu-vdown'), function () { volStep(-2); });
+    holdBtn(q('mu-vup'), function () { volStep(2); });
     bound.push({ el: f, paint: paintMusic });
     return f;
+  }
+  /* Volume in stapjes van 2; het geheel gaat na een korte pauze in één keer naar de Sonos. */
+  var volTimer = null;
+  function volStep(d) {
+    var s = state && state.sonos, v;
+    if (!s || !s.ok) { return; }
+    v = Math.max(0, Math.min(100, (Number(s.volume) || 0) + d));
+    s.volume = v; volSlider.sync(v); setText(muEls.volnum, v);
+    clearTimeout(volTimer);
+    volTimer = setTimeout(function () { sonosCmd('volume', v); }, 350);
+  }
+  /* Knop die bij tikken één keer werkt en bij vasthouden blijft herhalen. */
+  function holdBtn(e, fn) {
+    var t = null, r = null, mine = false;
+    function stop() { clearTimeout(t); clearInterval(r); t = r = null; removeClass(e, 'is-down'); }
+    e.addEventListener('touchstart', function (ev) {
+      mine = !ev.__tapTaken; ev.__tapTaken = true;
+      if (!mine) { return; }
+      ev.preventDefault(); lastTouch = Date.now(); addClass(e, 'is-down'); fn();
+      t = setTimeout(function () { r = setInterval(fn, 200); }, 450);
+    }, false);
+    e.addEventListener('touchend', function () { if (mine) { lastTouch = Date.now(); stop(); } }, false);
+    e.addEventListener('touchcancel', stop, false);
+    e.addEventListener('click', function (ev) { if (ev.__tapTaken || Date.now() - lastTouch < 800) { return; } ev.__tapTaken = true; fn(); }, false);
   }
   function paintMusic() {
     var s = state && state.sonos, m = muEls, p, url;
@@ -650,7 +688,7 @@
       p = isPlaying();
       if (p !== m.lastP) { m.lastP = p; m.play.innerHTML = p ? ICON.pause : ICON.play; }
       url = s.art || '';
-      if (url !== m.lastArt) { m.lastArt = url; m.art.style.backgroundImage = url ? 'url("' + url + '")' : 'none'; m.noart.style.display = url ? 'none' : ''; }
+      setArt(m.art, m.noart, url);
       setText(m.title, s.title || (s.source === 'none' ? 'Niets in de wachtrij' : 'Onbekend nummer'));
       setText(m.artist, (s.artist || (s.source === 'tv' ? 'Geluid van de televisie' : '')) + (s.album && s.artist ? ' · ' + s.album : ''));
       setClass(m.prev, 'is-disabled', !s.canSkip);
@@ -790,7 +828,7 @@
   function applyTheme() {
     var th = (state.layout && state.layout.theme) || 'warm';
     var cls = 'theme-' + th + (isDark(state.layout) ? ' mode-dark' : '');
-    if (document.body.className !== cls) { document.body.className = cls; }
+    if (document.body.className !== cls) { document.body.className = cls; try { window.localStorage.setItem('hp-theme', cls); } catch (e) { /* privémodus */ } }
   }
   function screensOn() { return ((state.layout && state.layout.screens) || []).filter(function (s) { return s.on; }); }
   function buildFaces() {

@@ -275,6 +275,7 @@
       (d.rooms || []).forEach(function (r) { r.tiles.forEach(function (t) { if (!tileById[t.id]) { tileById[t.id] = t; } }); });
       tiles = JSON.parse(JSON.stringify((d.layout && d.layout.home) || []));
       document.body.className = 'theme-' + ((d.layout && d.layout.theme) || 'warm') + (isDark(d.layout) ? ' mode-dark' : '');
+      try { window.localStorage.setItem('hp-theme', document.body.className); } catch (e) { /* privémodus */ }
       draw();
     });
     tap($('save'), save);

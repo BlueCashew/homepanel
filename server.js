@@ -479,10 +479,12 @@ async function sonosFind() {
 
 /* Hoezen lopen via de Pi: de iPad hoeft dan geen externe servers te vertrouwen, en ze worden bewaard. */
 const art = new Map();
-function artKey(url) {
-  const k = crypto.createHash('sha1').update(url).digest('hex').slice(0, 12);
+/* Eén sleutel voor een lijst adressen: de eerste die een afbeelding geeft, wint. */
+function artKey(urls) {
+  urls = (Array.isArray(urls) ? urls : [urls]).filter(Boolean);
+  const k = crypto.createHash('sha1').update(urls.join('|')).digest('hex').slice(0, 12);
   if (!art.has(k)) {
-    art.set(k, { url, data: null, type: null });
+    art.set(k, { urls, data: null, type: null, failedAt: 0 });
     while (art.size > 80) art.delete(art.keys().next().value);
   }
   return k;
@@ -521,17 +523,25 @@ async function sonosLoad() {
       } else {
         const station = unesc(tag(mediaMeta, 'title'));
         const stream = unesc(tag(meta, 'streamContent'));
-        if (/^(x-sonosapi-stream|x-sonosapi-radio|x-rincon-mp3radio|aac:|hls-radio)/.test(unesc(tag(r[2], 'CurrentURI')) || uri)) {
-          out.source = 'radio'; out.canSkip = /x-sonosapi-radio/.test(unesc(tag(r[2], 'CurrentURI')));
-          if (!out.artist) { out.artist = station; }
-          if (stream && (!out.title || /\.(mp3|aac|m3u8?)|^x-/.test(out.title))) out.title = stream;
-          if (!out.title) out.title = station;
+        const mediaUri = unesc(tag(r[2], 'CurrentURI'));
+        const isRadio = /^(x-sonosapi-stream|x-sonosapi-radio|x-rincon-mp3radio|aac:|hls-radio|x-sonosapi-hls)/.test(mediaUri || uri);
+        if (isRadio) {
+          out.source = 'radio'; out.canSkip = /x-sonosapi-radio/.test(mediaUri);
+          /* Bij radio is de titel vaak de technische streamnaam (bijv. 'radio2-bb-aac'): dan de zendernaam tonen. */
+          const junk = (t) => !t || /\.(mp3|aac|m3u8?)|^x-|^[\w.-]+$/i.test(t) && !/\s/.test(t);
+          if (stream && !junk(stream)) {
+            out.title = stream; out.artist = station || out.artist;
+          } else if (junk(out.title)) {
+            out.title = station || out.artist || 'Radio'; out.artist = station && out.artist !== station ? out.artist : 'Radio';
+          } else if (!out.artist) {
+            out.artist = station;
+          }
         }
-        let art = unesc(tag(meta, 'albumArtURI'));
-        if (art) {
-          if (art.charAt(0) === '/') art = 'http://' + host + ':1400' + art;
-          out.art = '/api/sonos/art?k=' + artKey(art);
-        }
+        /* Hoes: eerst die van het nummer, dan die van de zender/het album; bij radio levert de Sonos zelf het zenderlogo. */
+        const abs = (x) => (x && x.charAt(0) === '/' ? 'http://' + host + ':1400' + x : x);
+        const urls = [abs(unesc(tag(meta, 'albumArtURI'))), abs(unesc(tag(mediaMeta, 'albumArtURI')))];
+        if (isRadio && mediaUri) urls.push('http://' + host + ':1400/getaa?s=1&u=' + encodeURIComponent(mediaUri));
+        if (urls.some(Boolean)) out.art = '/api/sonos/art?k=' + artKey(urls);
       }
       sonos.cache = out; sonos.cacheAt = Date.now(); sonos.error = null; sonos.fails = 0;
       return out;
@@ -570,14 +580,23 @@ async function sonosArt(key) {
   const a = art.get(key);
   if (!a) return null;
   if (a.data) return a;
-  let url = a.url;
-  for (let i = 0; i < 4; i++) {
-    const r = await request('GET', url, { timeout: 8000 });
-    if (r.status >= 300 && r.status < 400 && r.headers.location) { url = new URL(r.headers.location, url).toString(); continue; }
-    if (r.status !== 200 || r.body.length > 2 * 1024 * 1024) return null;
-    a.data = r.body; a.type = r.headers['content-type'] || 'image/jpeg';
-    return a;
+  if (a.failedAt && Date.now() - a.failedAt < 60000) return null; // niet elke paar seconden opnieuw proberen
+  for (const first of a.urls) {
+    let url = first;
+    try {
+      for (let i = 0; i < 4; i++) {
+        const r = await request('GET', url, { timeout: 8000 });
+        if (r.status >= 300 && r.status < 400 && r.headers.location) { url = new URL(r.headers.location, url).toString(); continue; }
+        const type = String(r.headers['content-type'] || '');
+        if (r.status === 200 && r.body.length > 0 && r.body.length <= 4 * 1024 * 1024 && (!type || /^image\//.test(type))) {
+          a.data = r.body; a.type = type || 'image/jpeg';
+          return a;
+        }
+        break;
+      }
+    } catch (e) { /* volgende adres proberen */ }
   }
+  a.failedAt = Date.now();
   return null;
 }
 

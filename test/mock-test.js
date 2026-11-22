@@ -68,6 +68,7 @@ const hbMock = http.createServer((req, res) => {
 /* Nagebootste Sonos op poort 1400 (alleen op een eigen loopback-adres). */
 const sonosLog = [];
 let volume = 31;
+let radioNow = false; // NPO Radio 2 zoals de Sonos het doorgeeft: streamnaam als titel, geen hoes bij het nummer
 function soapOut(action, inner) {
   return '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><u:' + action + 'Response xmlns:u="urn:x">' + inner + '</u:' + action + 'Response></s:Body></s:Envelope>';
 }
@@ -103,7 +104,7 @@ const sonosMock = http.createServer((req, res) => {
   let body = '';
   req.on('data', (c) => { body += c; });
   req.on('end', () => {
-    if (req.url.indexOf('/getaa') === 0) { res.writeHead(200, { 'Content-Type': 'image/jpeg' }); return res.end(Buffer.from([255, 216, 255])); }
+    if (req.url.indexOf('/getaa') === 0) { sonosLog.push('getaa ' + decodeURIComponent((req.url.split('u=')[1] || '').split('&')[0]).slice(0, 26)); res.writeHead(200, { 'Content-Type': 'image/jpeg' }); return res.end(Buffer.from([255, 216, 255])); }
     const action = /#(\w+)"/.exec(req.headers.soapaction || '')[1];
     sonosLog.push(action + (/<DesiredVolume>(\d+)/.exec(body) ? '=' + /<DesiredVolume>(\d+)/.exec(body)[1] : '') +
       (/<CurrentURI>([^<]*)/.exec(body) ? '=' + /<CurrentURI>([^<]*)/.exec(body)[1] : '') + (/<EnqueuedURI>([^<]*)/.exec(body) ? '=' + /<EnqueuedURI>([^<]*)/.exec(body)[1] : '') +
@@ -111,8 +112,12 @@ const sonosMock = http.createServer((req, res) => {
     const map = {
       GetZoneGroupState: '<ZoneGroupState>' + zones + '</ZoneGroupState>',
       GetTransportInfo: '<CurrentTransportState>PLAYING</CurrentTransportState>',
-      GetPositionInfo: '<Track>1</Track><TrackURI>x-sonos-spotify:spotify%3atrack%3a1</TrackURI><TrackMetaData>' + didl + '</TrackMetaData>',
-      GetMediaInfo: '<CurrentURI>x-rincon-queue:RINCON_A#0</CurrentURI><CurrentURIMetaData></CurrentURIMetaData>',
+      GetPositionInfo: radioNow
+        ? '<Track>1</Track><TrackURI>aac://https://icecast.example/radio2-bb-aac</TrackURI><TrackMetaData>' + escx('<DIDL-Lite ' + NS + '><item id="-1"><dc:title>radio2-bb-aac</dc:title><r:streamContent></r:streamContent></item></DIDL-Lite>') + '</TrackMetaData>'
+        : '<Track>1</Track><TrackURI>x-sonos-spotify:spotify%3atrack%3a1</TrackURI><TrackMetaData>' + didl + '</TrackMetaData>',
+      GetMediaInfo: radioNow
+        ? '<CurrentURI>x-sonosapi-stream:s6707?sid=303&amp;flags=8224</CurrentURI><CurrentURIMetaData>' + escx(metaRadio) + '</CurrentURIMetaData>'
+        : '<CurrentURI>x-rincon-queue:RINCON_A#0</CurrentURI><CurrentURIMetaData></CurrentURIMetaData>',
       GetVolume: '<CurrentVolume>' + volume + '</CurrentVolume>',
       GetMute: '<CurrentMute>0</CurrentMute>',
       Browse: '<Result>' + escx(/<ObjectID>FV:2/.test(body) ? favDidl : sqDidl) + '</Result><NumberReturned>2</NumberReturned>',
@@ -278,6 +283,19 @@ function call(port, method, p, body) {
     assert.ok(/^\/api\/sonos\/art\?k=/.test(s.art));
     const art = await call(port, 'GET', s.art);
     assert.strictEqual(art.status, 200); assert.strictEqual(art.type, 'image/jpeg'); assert.strictEqual(art.raw.length, 3);
+    radioNow = true;
+    await new Promise((res) => setTimeout(res, 1600)); // cache verlopen
+    r = await call(port, 'GET', '/api/state');
+    assert.strictEqual(r.json.sonos.source, 'radio');
+    assert.strictEqual(r.json.sonos.title, 'NPO Radio 2', 'zendernaam in plaats van de streamnaam');
+    assert.ok(r.json.sonos.art, 'zenderlogo via de Sonos');
+    sonosLog.length = 0;
+    const logo = await call(port, 'GET', r.json.sonos.art);
+    assert.strictEqual(logo.status, 200);
+    assert.ok(sonosLog.some((x) => x.indexOf('getaa x-sonosapi-stream:s6707') === 0), 'logo opgevraagd met de zender-URL: ' + sonosLog.join(','));
+    radioNow = false; sonosLog.length = 0;
+    await new Promise((res) => setTimeout(res, 1600));
+    console.log('ok  sonos: radio toont zendernaam en zenderlogo');
     r = await call(port, 'POST', '/api/sonos', { action: 'volume', value: 44.4 });
     assert.strictEqual(r.status, 200);
     r = await call(port, 'POST', '/api/sonos', { action: 'toggle' });
