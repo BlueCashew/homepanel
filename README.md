@@ -117,7 +117,7 @@ node test/update-test.js   # bijwerken, weigeren van een kapotte versie en terug
 
 - **Beginscherm en eigen schermen:** elk een raster van 4×3 vakken. Tegels kunnen 1×½, 2×½, 1×1, 2×1, 1×2 of 2×2 zijn (scènes, lampen, schakelaars en kamerknoppen ook halve hoogte; de thermostaat en widgets 1×1 t/m 2×2). Mogelijk zijn lampen, lampgroepen, scènes, schakelaars, de thermostaat (in elk formaat met − en +), kamerknoppen, een klok (analoog of digitaal), het weer, "Nu speelt" en de Apple TV.
 - **Kamerknoppen:** tonen hoeveel lampen er aan zijn; tikken opent de kamer in een venster over het scherm, met eerst de scènes, dan de lampen en dan de rest.
-- **Lampgroepen:** in de instellingen zet je lampen bij elkaar (bijv. "Plafond spots"). Op het paneel werkt de groep als één lamp en vervangt hij de losse lampen in de kamer. Groepen bestaan alleen in het paneel, niet in de Hue-app of HomeKit.
+- **Lampgroepen:** in de editor tik je op een leeg vak → Lampen → **+ Nieuwe lampgroep**: naam geven en lampen aanvinken (bijv. "Plafond spots"). Op het paneel werkt de groep als één lamp en vervangt hij de losse lampen, in de kamers en op de schermen. Groepstegel aantikken → **Groep wijzigen** om lampen te wijzigen of de groep op te heffen. Een lamp zit in hooguit één groep; alles wordt bewaard met Opslaan.
 - **Muziek:** wat er speelt (met hoes of zenderlogo), bediening, volumeschuif met − en +, plus je Sonos-favorieten en Sonos-playlists om af te spelen. Zoeken in Apple Music of andere diensten kan niet; bewaar wat je wilt horen als favoriet in de Sonos-app.
 
 **Tikken en vasthouden:**

@@ -505,7 +505,13 @@ function call(port, method, p, body) {
   /* ---- lampgroepen ---- */
   assert.strictEqual((await call(port, 'POST', '/api/layout', { groups: [{ name: 'Spots', members: ['hue:light:l1'] }] })).status, 400, 'minstens twee lampen');
   assert.strictEqual((await call(port, 'POST', '/api/layout', { groups: [{ name: ' ', members: ['hue:light:l1', 'hue:light:l2'] }] })).status, 400, 'naam verplicht');
-  r = await call(port, 'POST', '/api/layout', { groups: [{ name: 'Plafond spots', members: ['hue:light:l1', 'hue:light:l2', 'hue:light:l1', 'grp:x'] }] });
+  r = await call(port, 'POST', '/api/layout', { groups: [{ name: 'A', members: ['hue:light:l1', 'hue:light:l2'] }, { name: 'B', members: ['hue:light:l1', 'hue:light:l3'] }] });
+  assert.strictEqual(r.status, 400, 'een lamp in twee groepen');
+  const homeBefore = (await call(port, 'GET', '/api/state')).json.layout.home;
+  r = await call(port, 'POST', '/api/layout', { home: [], groups: [{ name: 'A', members: ['hue:light:l1'] }] });
+  assert.strictEqual(r.status, 400);
+  assert.deepStrictEqual((await call(port, 'GET', '/api/state')).json.layout.home, homeBefore, 'een fout laat het beginscherm ongemoeid');
+  r = await call(port, 'POST', '/api/layout', { groups: [{ id: 'gabc123', name: 'Plafond spots', members: ['hue:light:l1', 'hue:light:l2', 'hue:light:l1', 'grp:x'] }] });
   assert.strictEqual(r.status, 200);
   await new Promise((res2) => setTimeout(res2, 2100));
   r = await call(port, 'GET', '/api/state');
@@ -513,7 +519,9 @@ function call(port, method, p, body) {
   assert.deepStrictEqual(zk.map((t) => t.name), ['Alle lampen', 'Plafond spots', 'Avond', 'Lezen'], 'groep staat op de plek van de lampen');
   const gt = zk[1];
   assert.ok(/^grp:/.test(gt.id) && gt.kind === 'light' && gt.levelChar === 'level' && gt.ctChar === 'ct', JSON.stringify(gt));
+  assert.strictEqual(gt.id, 'grp:gabc123', 'id van de editor blijft staan');
   assert.ok(r.json.lights.some((x) => x.id === 'hue:light:l1'), 'losse lampen blijven kiesbaar voor groepen');
+  assert.ok(!r.json.lights.some((x) => x.name === 'Alle lampen'), 'Hue-kamers niet in de groepenlijst');
   assert.deepStrictEqual(r.json.layout.groups.map((g) => g.members), [['hue:light:l1', 'hue:light:l2']]);
   hueLog.length = 0;
   assert.strictEqual((await set(gt.id, 'on', true)).status, 200);

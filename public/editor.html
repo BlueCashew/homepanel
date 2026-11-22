@@ -77,6 +77,22 @@ body.theme-zand #area .tile.is-sel { box-shadow: 0 0 0 4px #2d261d, 0 10px 30px 
 .pk-item svg { position: absolute; left: 18px; top: 16px; width: 24px; height: 24px; }
 .pk-item small { opacity: .6; margin-left: 8px; font-size: 14px; }
 .pk-item.is-used { opacity: .45; }
+/* Groep maken of wijzigen */
+.pk-foot { display: none; position: absolute; left: 0; right: 0; bottom: 0; height: 84px; padding: 14px 18px 0 18px; -webkit-box-sizing: border-box; box-sizing: border-box; background: #26324a; box-shadow: 0 -8px 20px rgba(0,0,0,.18); }
+.pk-box.is-group .pk-foot { display: block; }
+.pk-box.is-group .pk-list { bottom: 84px; }
+.pk-save { display: inline-block; height: 56px; line-height: 56px; padding: 0 22px; border-radius: 18px; background: #fff; color: #2b2210; font-size: 17px; font-weight: 600; cursor: pointer; }
+.pk-save.is-off { opacity: .4; }
+.pk-save.pk-del { float: right; background: rgba(200,60,50,.85); color: #fff; }
+.pk-save.is-down { opacity: .6; }
+.pk-name { display: block; width: 100%; height: 56px; margin-top: 4px; padding: 0 18px; border: 0; border-radius: 16px; background: rgba(255,255,255,.12); color: #f4f0e6; font-size: 18px; -webkit-box-sizing: border-box; box-sizing: border-box; -webkit-appearance: none; outline: none; }
+.pk-name::-webkit-input-placeholder { color: rgba(244,240,230,.45); }
+.pk-hint { margin: 10px 8px 0 8px; font-size: 14px; line-height: 19px; opacity: .65; }
+.pk-check { padding-left: 60px; }
+.pk-check:before { content: ""; position: absolute; left: 18px; top: 15px; width: 22px; height: 22px; border-radius: 7px; border: 2px solid rgba(255,255,255,.4); }
+.pk-check.is-on { background: rgba(111,211,168,.18); }
+.pk-check.is-on:before { background: #6fd3a8; border-color: #6fd3a8; }
+.pk-check.is-on:after { content: ""; position: absolute; left: 26px; top: 19px; width: 6px; height: 11px; border: solid #17261f; border-width: 0 3px 3px 0; -webkit-transform: rotate(45deg); transform: rotate(45deg); }
 @media (max-width: 700px) {
   .pk-box { left: 10px; right: 10px; width: auto; margin-left: 0; }
   .ed-tabs { left: 120px; right: 110px; }
@@ -94,7 +110,7 @@ body.theme-zand #area .tile.is-sel { box-shadow: 0 0 0 4px #2d261d, 0 10px 30px 
 </div>
 <div id="area"></div>
 <div class="ed-bar" id="bar"></div>
-<div id="picker"><div class="pk-box" id="pk-box"><div class="pk-head"><div class="pk-back" id="pk-back">‹ Terug</div><div class="pk-title" id="pk-title">Wat komt hier?</div><div class="pk-close" id="pk-close">Sluiten</div></div><div class="pk-list" id="pk-list"></div></div></div>
+<div id="picker"><div class="pk-box" id="pk-box"><div class="pk-head"><div class="pk-back" id="pk-back">‹ Terug</div><div class="pk-title" id="pk-title">Wat komt hier?</div><div class="pk-close" id="pk-close">Sluiten</div></div><div class="pk-list" id="pk-list"></div><div class="pk-foot" id="pk-foot"></div></div></div>
 <div id="offline"></div>
 <script src="editor.js"></script>
 </body>

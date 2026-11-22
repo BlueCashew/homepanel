@@ -1024,10 +1024,15 @@ function layoutOut(rooms) {
 }
 
 function saveLayout(b) {
-  if (b.home !== undefined) config.layout.home = b.home === null ? null : cleanHome(b.home);
-  if (b.screens !== undefined) config.layout.screens = cleanScreens(b.screens);
-  if (b.pages !== undefined) config.layout.pages = b.pages === null ? null : cleanPages(b.pages);
-  if (b.groups !== undefined) config.groups = cleanGroups(b.groups);
+  /* Eerst alles controleren, pas daarna overnemen: een fout laat niets half veranderd achter. */
+  const home = b.home !== undefined ? (b.home === null ? null : cleanHome(b.home)) : undefined;
+  const screens = b.screens !== undefined ? cleanScreens(b.screens) : undefined;
+  const pages = b.pages !== undefined ? (b.pages === null ? null : cleanPages(b.pages)) : undefined;
+  const groups = b.groups !== undefined ? cleanGroups(b.groups) : undefined;
+  if (home !== undefined) config.layout.home = home;
+  if (screens !== undefined) config.layout.screens = screens;
+  if (pages !== undefined) config.layout.pages = pages;
+  if (groups !== undefined) config.groups = groups;
   if (b.theme !== undefined) {
     if (THEMES.indexOf(b.theme) === -1) throw new Error('Onbekend thema');
     config.layout.theme = b.theme;
@@ -1051,6 +1056,7 @@ function saveLayout(b) {
 function cleanGroups(list) {
   if (!Array.isArray(list)) throw new Error('Ongeldige groepen');
   const seen = {};
+  const taken = {}; // een lamp zit in hooguit één groep
   return list.slice(0, 50).map((g, i) => {
     if (!g || typeof g !== 'object') throw new Error('Ongeldige groep');
     let id = typeof g.id === 'string' && /^[a-z0-9]{1,16}$/.test(g.id) && !seen[g.id] ? g.id : '';
@@ -1061,6 +1067,7 @@ function cleanGroups(list) {
     const m = {};
     const members = (Array.isArray(g.members) ? g.members : []).filter((x) => typeof x === 'string' && x && x.length <= 200 && !/^grp:/.test(x) && !m[x] && (m[x] = true)).slice(0, 40);
     if (members.length < 2) throw new Error('Kies minstens twee lampen voor ' + name);
+    members.forEach((x) => { if (taken[x]) throw new Error('Een lamp zit al in de groep ' + taken[x] + ' en kan niet ook in ' + name); taken[x] = name; });
     return { id, name, members };
   });
 }
@@ -1068,7 +1075,9 @@ const groupMembers = {}; // laatst geziene lampen per groep, voor het schakelen
 function applyGroups(rooms) {
   const all = {};
   rooms.forEach((r) => r.tiles.forEach((t) => { if (t.kind === 'light' && !all[t.id]) all[t.id] = t; }));
-  const lights = Object.keys(all).map((id) => ({ id, name: all[id].name, room: all[id].room || '' }));
+  /* Alleen echte lampen; Hue-kamers ('Alle lampen') kunnen niet in een groep. */
+  const lights = Object.keys(all).filter((id) => all[id].type !== 'HueGroup' && all[id].name !== 'Alle lampen')
+    .map((id) => ({ id, name: all[id].name, room: all[id].room || '', level: typeof all[id].level === 'number' }));
   (config.groups || []).forEach((g) => {
     const ms = g.members.map((id) => all[id]).filter(Boolean);
     groupMembers[g.id] = ms;

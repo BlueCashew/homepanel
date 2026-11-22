@@ -12,6 +12,9 @@
   var target = null;       // { x, y } van het lege vak waarvoor de kiezer open is
   var tileById = {};
   var dirty = false;
+  var groups = [];         // lampgroepen, lokaal tot Opslaan: { id, name, members }
+  var groupsDirty = false;
+  var backFn = null;       // wat '‹ Terug' in de kiezer doet
   var lastTouch = 0;
   var GAP = 14;
 
@@ -246,6 +249,9 @@
     if (t.type === 'clock') {
       tools.appendChild(btn(t.variant === 'digital' ? 'Analoog' : 'Digitaal', '', function () { t.variant = t.variant === 'digital' ? 'analog' : 'digital'; dirty = true; draw(); }));
     }
+    if (groupByRef(t.ref)) {
+      tools.appendChild(btn('Groep wijzigen', '', function () { target = null; openGroup(groupByRef(t.ref), null); }));
+    }
     tools.appendChild(btn('Verplaatsen', '', function () { moving = true; draw(); }));
     tools.appendChild(btn('Weghalen', 'danger', function () { tiles.splice(sel, 1); sel = -1; dirty = true; draw(); }));
     b.appendChild(tools);
@@ -341,12 +347,15 @@
   function used() { var u = {}; tiles.forEach(function (t) { if (t.ref) { u[t.ref] = true; } }); return u; }
   function roomsSorted() { var rs = state.rooms || []; return rs.filter(function (r) { return !r.zone; }).concat(rs.filter(function (r) { return r.zone; })); }
   function count(kind) {
-    var n = 0, seen = {};
+    var n = 0;
+    if (kind === 'light') { return lightsByRoom().reduce(function (a, r) { return a + r.items.length; }, groups.length); }
+    var seen = {};
     roomsSorted().forEach(function (r) { r.tiles.forEach(function (d) { if (!seen[d.id] && cat(d) === kind) { seen[d.id] = true; n++; } }); });
     return n;
   }
   function openPicker() {
     var list = $('pk-list');
+    backFn = openPicker;
     $('pk-box').className = 'pk-box';
     txt($('pk-title'), 'Wat komt hier?');
     list.innerHTML = '';
@@ -374,6 +383,7 @@
     return list;
   }
   function showKind(kind, title) {
+    if (kind === 'light') { showLights(); return; }
     var list = sub(title), u = used(), seen = {};
     roomsSorted().forEach(function (r) {
       var ds = r.tiles.filter(function (d) { return cat(d) === kind && !seen[d.id]; });
@@ -388,6 +398,155 @@
     });
     if (!list.children.length) { list.appendChild(txt(el('div', 'pk-group'), 'Niets gevonden')); }
   }
+  /* ------------------------------------------------------------ lampen en groepen */
+  function newGroupId() { return 'g' + Math.random().toString(36).slice(2, 10).replace(/[^a-z0-9]/g, '0'); }
+  function groupByRef(ref) {
+    var i;
+    if (typeof ref !== 'string' || ref.indexOf('grp:') !== 0) { return null; }
+    for (i = 0; i < groups.length; i++) { if (groups[i].id === ref.slice(4)) { return groups[i]; } }
+    return null;
+  }
+  function groupOfLamp(id, skipId) {
+    var i;
+    for (i = 0; i < groups.length; i++) { if (groups[i].id !== skipId && groups[i].members.indexOf(id) !== -1) { return groups[i]; } }
+    return null;
+  }
+  /* Alle losse lampen (niet in een groep), per kamer. Lampen die al in een opgeslagen groep zitten
+     staan niet meer in state.rooms, daarom komt de lijst uit state.lights. */
+  function lightsByRoom(skipGroup, withGrouped) {
+    var out = [], byName = {}, seen = {};
+    function add(roomName, d) {
+      if (seen[d.id]) { return; }
+      seen[d.id] = true;
+      if (!byName[roomName]) { byName[roomName] = { name: roomName, items: [] }; out.push(byName[roomName]); }
+      byName[roomName].items.push(d);
+    }
+    roomsSorted().forEach(function (r) {
+      r.tiles.forEach(function (d) {
+        if (d.kind !== 'light' || d.isGroup) { return; }
+        if (skipGroup === 'lamps' && (d.type === 'HueGroup' || d.name === 'Alle lampen')) { return; }
+        if (!withGrouped && groupOfLamp(d.id)) { return; }
+        add(r.name, d);
+      });
+    });
+    (state.lights || []).forEach(function (l) {
+      if (!withGrouped && groupOfLamp(l.id)) { return; }
+      add(l.room || 'Zonder kamer', tileById[l.id] || l);
+    });
+    return out;
+  }
+  function showLights() {
+    var list = sub('Lampen'), u = used();
+    backFn = openPicker;
+    list.appendChild(txt(el('div', 'pk-group'), 'Lampgroepen'));
+    item(list, ICON.group, '+ Nieuwe lampgroep', 'meerdere lampen als één lamp', false, function () { openGroup(null, 'picker'); });
+    groups.forEach(function (g) {
+      item(list, ICON.group, g.name, g.members.length + ' lampen', u['grp:' + g.id], function () { place({ type: 'device', ref: 'grp:' + g.id }); });
+    });
+    lightsByRoom().forEach(function (r) {
+      list.appendChild(txt(el('div', 'pk-group'), r.name));
+      r.items.forEach(function (d) {
+        var ic = d.type === 'HueGroup' ? ICON.group : ICON.light;
+        item(list, ic, d.name === 'Alle lampen' ? 'Alle lampen in ' + r.name : d.name, '', u[d.id], function () { place({ type: 'device', ref: d.id }); });
+      });
+    });
+  }
+  /* Pop-up om een groep te maken of te wijzigen. from = 'picker' als hij uit 'Wat komt hier?' komt. */
+  function openGroup(g, from) {
+    var edit = { id: g ? g.id : newGroupId(), sel: {}, n: 0 }, list, name, foot = $('pk-foot');
+    if (g) { g.members.forEach(function (m) { edit.sel[m] = true; edit.n++; }); }
+    list = sub(g ? 'Groep wijzigen' : 'Nieuwe lampgroep');
+    $('pk-box').className = 'pk-box is-sub is-group';
+    backFn = from === 'picker' ? showLights : closePicker;
+    $('picker').className = 'is-shown';
+    name = el('input', 'pk-name');
+    name.setAttribute('maxlength', '40');
+    name.setAttribute('placeholder', 'Naam, bijvoorbeeld Plafond spots');
+    name.setAttribute('autocorrect', 'off');
+    name.value = g ? g.name : '';
+    list.appendChild(name);
+    list.appendChild(txt(el('div', 'pk-hint'), 'Kies de lampen die samen als één lamp moeten werken. Aan, uit en dimmen gaan dan naar alle lampen tegelijk.'));
+    lightsByRoom('lamps', true).forEach(function (r) {
+      list.appendChild(txt(el('div', 'pk-group'), r.name));
+      r.items.forEach(function (d) {
+        var other = groupOfLamp(d.id, edit.id);
+        var e = el('div', 'pk-item pk-check' + (edit.sel[d.id] ? ' is-on' : '') + (other ? ' is-used' : ''), '<span></span>' + (other ? '<small></small>' : ''));
+        txt(e.children[0], d.name);
+        if (other) { txt(e.children[1], 'in ' + other.name); }
+        tap(e, function () {
+          if (other) { toast(d.name + ' zit al in de groep ' + other.name + '.'); return; }
+          edit.sel[d.id] = !edit.sel[d.id];
+          edit.n += edit.sel[d.id] ? 1 : -1;
+          e.className = 'pk-item pk-check' + (edit.sel[d.id] ? ' is-on' : '');
+          drawFoot();
+        });
+        list.appendChild(e);
+      });
+    });
+    function drawFoot() {
+      foot.innerHTML = '';
+      var ok = el('div', 'pk-save' + (edit.n < 2 ? ' is-off' : ''));
+      txt(ok, edit.n < 2 ? 'Kies minstens twee lampen' : (g ? 'Groep opslaan' : 'Groep maken') + ' (' + edit.n + ' lampen)');
+      tap(ok, function () { saveGroup(g, edit, name.value, from); });
+      foot.appendChild(ok);
+      if (g) {
+        var del = el('div', 'pk-save pk-del');
+        txt(del, 'Groep opheffen');
+        tap(del, function () { removeGroup(g); });
+        foot.appendChild(del);
+      }
+    }
+    drawFoot();
+    if (!g) { setTimeout(function () { try { name.focus(); } catch (e) { /* iOS */ } }, 50); }
+  }
+  /* Lokale tegel voor een groep, zodat hij meteen in de editor staat (de echte komt na Opslaan). */
+  function syncGroupTiles() {
+    groups.forEach(function (g) {
+      var old = tileById['grp:' + g.id] || {}, first = tileById[g.members[0]] || {};
+      tileById['grp:' + g.id] = { id: 'grp:' + g.id, name: g.name, kind: 'light', isGroup: true, room: old.room || first.room || '', on: old.on };
+    });
+  }
+  /* Op elk scherm: de eerste lamp uit de groep wordt de groep, de andere lampen gaan weg. */
+  function screensEach(fn) { keep(); fn(home); pages.forEach(function (p) { fn(p.tiles); }); }
+  function putGroupOnScreens(g) {
+    var ref = 'grp:' + g.id, mem = {};
+    g.members.forEach(function (m) { mem[m] = true; });
+    screensEach(function (list) {
+      var has = list.some(function (t) { return t.ref === ref; }), i;
+      for (i = list.length - 1; i >= 0; i--) {
+        if (list[i].type !== 'device' || !mem[list[i].ref]) { continue; }
+        if (!has && !list.slice(0, i).some(function (t) { return t.type === 'device' && mem[t.ref]; })) { list[i].ref = ref; has = true; }
+        else { list.splice(i, 1); }
+      }
+    });
+    return tiles.some(function (t) { return t.ref === ref; });
+  }
+  function saveGroup(g, edit, nameVal, from) {
+    var name2 = String(nameVal || '').replace(/^\s+|\s+$/g, '').slice(0, 40), members = [], id, ng, onScreen;
+    if (!name2) { toast('Geef de groep een naam.'); return; }
+    for (id in edit.sel) { if (edit.sel[id]) { members.push(id); } }
+    if (members.length < 2) { toast('Kies minstens twee lampen.'); return; }
+    ng = { id: edit.id, name: name2, members: members };
+    if (g) { groups[groups.indexOf(g)] = ng; } else { groups.push(ng); }
+    groupsDirty = true; dirty = true;
+    syncGroupTiles();
+    onScreen = putGroupOnScreens(ng);
+    sel = -1;
+    if (from === 'picker' && target && !onScreen) { place({ type: 'device', ref: 'grp:' + ng.id }); }
+    else { closePicker(); draw(); }
+    toast(g ? 'Groep aangepast. Druk op Opslaan om het te bewaren.' : 'Groep gemaakt. Druk op Opslaan om hem te bewaren.');
+  }
+  /* Opheffen: de groepstegel wordt weer de eerste lamp, de lampen komen los in hun kamer. */
+  function removeGroup(g) {
+    if (!window.confirm('De groep "' + g.name + '" opheffen? De lampen worden weer los.')) { return; }
+    var ref = 'grp:' + g.id;
+    groups.splice(groups.indexOf(g), 1);
+    groupsDirty = true; dirty = true;
+    screensEach(function (list) { list.forEach(function (t) { if (t.ref === ref) { t.ref = g.members[0]; } }); });
+    sel = -1;
+    closePicker(); draw();
+  }
+
   function showRooms() {
     var list = sub('Kamers'), u = used();
     roomsSorted().forEach(function (r) {
@@ -409,12 +568,14 @@
     tap(e, fn);
     list.appendChild(e);
   }
-  function closePicker() { $('picker').className = ''; target = null; }
+  function closePicker() { $('picker').className = ''; target = null; $('pk-foot').innerHTML = ''; }
 
   /* ------------------------------------------------------------ opslaan */
   function save() {
     keep();
-    api('POST', 'api/layout', { home: home, pages: pages }, function (err) {
+    var body = { home: home, pages: pages };
+    if (groupsDirty) { body.groups = groups; }
+    api('POST', 'api/layout', body, function (err) {
       if (err) { toast(err); return; }
       dirty = false;
       window.location.href = backUrl();
@@ -426,6 +587,10 @@
       if (err) { toast(err); return; }
       state = d;
       (d.rooms || []).forEach(function (r) { r.tiles.forEach(function (t) { if (!tileById[t.id]) { tileById[t.id] = t; } }); });
+      /* Lampen die nu in een groep zitten staan niet meer in de kamers; wel nodig voor namen. */
+      (d.lights || []).forEach(function (l) { if (!tileById[l.id]) { tileById[l.id] = { id: l.id, name: l.name, kind: 'light', room: l.room }; } });
+      groups = JSON.parse(JSON.stringify((d.layout && d.layout.groups) || []));
+      syncGroupTiles();
       home = JSON.parse(JSON.stringify((d.layout && d.layout.home) || []));
       pages = JSON.parse(JSON.stringify((d.layout && d.layout.pages) || []));
       cur = -1;
@@ -444,7 +609,7 @@
       window.location.href = backUrl();
     });
     tap($('pk-close'), closePicker);
-    tap($('pk-back'), openPicker);
+    tap($('pk-back'), function () { if (backFn) { backFn(); } else { openPicker(); } });
     $('picker').addEventListener('click', function (e) { if (e.target === $('picker')) { closePicker(); } }, false);
     window.addEventListener('resize', draw, false);
     window.addEventListener('orientationchange', function () { setTimeout(draw, 300); }, false);

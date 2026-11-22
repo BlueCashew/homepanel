@@ -128,7 +128,7 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
 .gl-item.is-on:before { background: #6fd3a8; border-color: #6fd3a8; }
 .gl-item.is-on:after { content: ""; position: absolute; left: 8px; top: 14px; width: 6px; height: 11px; border: solid #17261f; border-width: 0 3px 3px 0; -webkit-transform: rotate(45deg); transform: rotate(45deg); }
 .gl-item small { color: rgba(244,240,230,.45); margin-left: 6px; }
-.grp-mem { position: absolute; left: 0; right: 168px; top: 30px; font-size: 12px; color: rgba(244,240,230,.55); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.grp-mem { position: absolute; left: 0; right: 0; top: 30px; font-size: 12px; color: rgba(244,240,230,.55); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .scr.grp .scr-name { line-height: 20px; top: 9px; }
 .grp-btn { position: absolute; top: 9px; height: 36px; line-height: 36px; padding: 0 12px; border-radius: 18px; background: rgba(255,255,255,.1); font-size: 14px; font-weight: 600; cursor: pointer; }
 .grp-edit { right: 92px; } .grp-del { right: 0; background: rgba(200,60,50,.7); }
@@ -213,17 +213,9 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
         <div class="icon"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="5" width="6" height="14" rx="2" opacity=".5"/><rect x="9" y="3" width="6" height="18" rx="2"/><rect x="16" y="5" width="6" height="14" rx="2" opacity=".5"/></svg></div>
         <h2>Lampgroepen</h2>
       </div>
-      <p>Zet lampen bij elkaar, bijvoorbeeld 'Plafond spots'. Op het paneel werkt een groep als één lamp: aan, uit en dimmen gaan naar alle lampen tegelijk. De losse lampen verdwijnen dan uit de kamer.</p>
+      <p>Zet lampen bij elkaar, bijvoorbeeld 'Plafond spots'. Op het paneel werkt een groep als één lamp. Groepen maak en wijzig je in de editor: tik op een leeg vak, kies Lampen en dan <b>+ Nieuwe lampgroep</b>. Een groep wijzigen of opheffen doe je door de groepstegel aan te tikken.</p>
       <div class="scr-list" id="groups">Laden…</div>
-      <div id="g-edit" style="display:none">
-        <label for="g-name">Naam van de groep</label>
-        <input id="g-name" maxlength="40" placeholder="Plafond spots">
-        <label>Lampen in deze groep</label>
-        <div class="gl-list" id="g-lights"></div>
-        <div class="btnrow"><button id="g-save">Groep opslaan</button><button id="g-cancel" class="secondary">Annuleren</button></div>
-      </div>
-      <button id="g-new">Nieuwe groep</button>
-      <div class="msg" id="m-grp"></div>
+      <button id="g-new">Naar de editor</button>
     </div>
 
     <div class="card">
@@ -565,65 +557,22 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
     if (body) { x.setRequestHeader('Content-Type', 'application/json'); x.send(JSON.stringify(body)); } else { x.send(); }
   }
   /* ------------------------------------------------------- lampgroepen */
-  var groups = [], lights = [], gEdit = null;
-  function lightName(id) { var i; for (i = 0; i < lights.length; i++) { if (lights[i].id === id) { return lights[i].name; } } return 'onbekende lamp'; }
-  function drawGroups() {
-    var box = $('groups');
+  /* Alleen een overzicht; maken en wijzigen gebeurt in de editor. */
+  function drawGroups(groups, lights) {
+    var box = $('groups'), names = {};
+    lights.forEach(function (l) { names[l.id] = l.name; });
     box.innerHTML = '';
-    if (!groups.length) { box.textContent = 'Nog geen groepen.'; }
-    groups.forEach(function (g, i) {
+    if (!groups.length) { box.textContent = 'Nog geen groepen.'; return; }
+    groups.forEach(function (g) {
       var r = document.createElement('div');
       r.className = 'scr grp';
-      r.innerHTML = '<div class="scr-name"></div><div class="grp-mem"></div><div class="grp-btn grp-edit">Wijzigen</div><div class="grp-btn grp-del">Weg</div>';
+      r.innerHTML = '<div class="scr-name"></div><div class="grp-mem"></div>';
       r.children[0].textContent = g.name;
-      r.children[1].textContent = g.members.map(lightName).join(', ');
-      r.children[2].onclick = function () { editGroup(i); };
-      r.children[3].onclick = function () {
-        if (!window.confirm('De groep "' + g.name + '" verwijderen? De lampen komen weer los in hun kamer.')) { return; }
-        saveGroups(groups.slice(0, i).concat(groups.slice(i + 1)), 'Groep verwijderd.');
-      };
+      r.children[1].textContent = g.members.map(function (id) { return names[id] || 'onbekende lamp'; }).join(', ');
       box.appendChild(r);
     });
-    $('g-new').style.display = gEdit ? 'none' : '';
-    $('g-edit').style.display = gEdit ? '' : 'none';
   }
-  function editGroup(i) {
-    var g = i === -1 ? { id: '', name: '', members: [] } : groups[i], box = $('g-lights'), lastRoom = null, sel = {};
-    gEdit = { index: i, sel: sel };
-    g.members.forEach(function (id) { sel[id] = true; });
-    $('g-name').value = g.name;
-    box.innerHTML = '';
-    lights.slice().sort(function (a, b) { return (a.room || '').localeCompare(b.room || '') || a.name.localeCompare(b.name); }).forEach(function (l) {
-      var e;
-      if (l.room !== lastRoom) { lastRoom = l.room; e = document.createElement('div'); e.className = 'gl-room'; e.textContent = l.room || 'Zonder kamer'; box.appendChild(e); }
-      e = document.createElement('div');
-      e.className = 'gl-item' + (sel[l.id] ? ' is-on' : '');
-      e.textContent = l.name;
-      e.onclick = function () { sel[l.id] = !sel[l.id]; this.className = 'gl-item' + (sel[l.id] ? ' is-on' : ''); };
-      box.appendChild(e);
-    });
-    drawGroups();
-    $('g-name').focus();
-  }
-  function saveGroups(list, okMsg) {
-    call2('api/layout', { groups: list }, function (r) {
-      var m = $('m-grp');
-      if (!r.ok) { show(m, r, ''); return; }
-      groups = list; gEdit = null; drawGroups();
-      m.className = 'msg ok'; m.textContent = okMsg;
-      loadLayout();
-    });
-  }
-  $('g-new').onclick = function () { editGroup(-1); };
-  $('g-cancel').onclick = function () { gEdit = null; drawGroups(); };
-  $('g-save').onclick = function () {
-    var e = gEdit, list = groups.slice(), members = [], id;
-    if (!e) { return; }
-    for (id in e.sel) { if (e.sel[id]) { members.push(id); } }
-    var g = { id: e.index >= 0 ? groups[e.index].id : '', name: $('g-name').value, members: members };
-    if (e.index >= 0) { list[e.index] = g; } else { list.push(g); }
-    saveGroups(list, 'Groep opgeslagen. Op het paneel staat hij nu op de plek van de lampen.');
-  };
+  $('g-new').onclick = function () { window.location.href = 'editor'; };
   function loadLayout() {
     call2('api/state?t=' + Date.now(), null, function (d) {
       if (!d.ok || !d.layout) { $('groups').textContent = 'Kon de lampen niet laden.'; return; }
@@ -631,9 +580,8 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
       look.mode = d.layout.mode || 'light'; look.schedule = d.layout.schedule || 'sun';
       look.sun = d.weather && d.weather.sunset && d.weather.sunrise ? { sunset: d.weather.sunset, sunrise: d.weather.sunrise } : null; look.darkFrom = d.layout.darkFrom || '21:00'; look.darkTo = d.layout.darkTo || '07:00';
       drawModes();
-      groups = d.layout.groups || []; lights = d.lights || [];
       drawThemes();
-      if (!gEdit) { drawGroups(); }
+      drawGroups(d.layout.groups || [], d.lights || []);
     });
   }
   $('b-edit').onclick = function () { window.location.href = 'editor'; };
