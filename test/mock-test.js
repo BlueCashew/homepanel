@@ -11,6 +11,8 @@ const log = [];
 let lights = { On: false, Brightness: 40 };
 let logins = 0;
 let target = 19.5;
+/* Zoals de echte webinterface: na een herstart soms 0 accessoires, tot de pagina Accessoires (socket.io) opnieuw laat zoeken. */
+let forgotten = false, nudges = [];
 
 function svc(id, type, name, chars) {
   return {
@@ -50,7 +52,7 @@ const hbMock = http.createServer((req, res) => {
       return send(201, { access_token: 'tok' + logins, token_type: 'Bearer', expires_in: 28800 });
     }
     if (req.headers.authorization !== 'Bearer tok' + logins) return send(401, { message: 'Unauthorized' });
-    if (req.method === 'GET' && req.url === '/api/accessories') return send(200, services());
+    if (req.method === 'GET' && req.url === '/api/accessories') return send(200, forgotten ? [] : services());
     if (req.method === 'GET' && req.url === '/api/accessories/layout') return send(200, layout);
     if (req.method === 'PUT' && req.url.indexOf('/api/accessories/') === 0) {
       const b = JSON.parse(body);
@@ -80,6 +82,23 @@ const favDidl = '<DIDL-Lite ' + NS + '>' +
   '<item id="FV:2/4" parentID="FV:2"><dc:title>NPO Radio 2</dc:title><upnp:class>object.itemobject.item.sonos-favorite</upnp:class><res protocolInfo="x-sonosapi-stream:*:*:*">x-sonosapi-stream:s6707?sid=303&amp;flags=8224</res><r:description>Sonos Radio</r:description><r:resMD>' + escx(metaRadio) + '</r:resMD></item>' +
   '</DIDL-Lite>';
 const sqDidl = '<DIDL-Lite ' + NS + '><container id="SQ:1" parentID="SQ:"><dc:title>Feestje</dc:title><upnp:class>object.container.playlistContainer</upnp:class><res protocolInfo="file:*:audio/mpegurl:*">file:///jffs/settings/savedqueues.rsq#1</res></container></DIDL-Lite>';
+/* Minimale WebSocket-server voor socket.io (EIO 4, alleen tekstframes). */
+hbMock.on('upgrade', (req, sock) => {
+  const crypto = require('crypto');
+  const key = crypto.createHash('sha1').update(req.headers['sec-websocket-key'] + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
+  sock.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ' + key + '\r\n\r\n');
+  const out = (t) => { const b = Buffer.from(t); sock.write(Buffer.concat([Buffer.from([0x81, b.length]), b])); };
+  const token = new URL(req.url, 'http://x').searchParams.get('token');
+  out('0{"sid":"s1","upgrades":[],"pingInterval":25000,"pingTimeout":20000}');
+  sock.on('data', (d) => {
+    if ((d[0] & 0x0f) === 8) { sock.end(); return; }
+    const len = d[1] & 0x7f, mask = d.slice(2, 6), msg = Buffer.from(d.slice(6, 6 + len).map((x, i) => x ^ mask[i % 4])).toString();
+    if (msg.indexOf('40/accessories,') === 0) { nudges.push({ token, auth: JSON.parse(msg.slice(15)).token }); out('40/accessories,{"sid":"n1"}'); }
+    if (msg === '42/accessories,["get-accessories"]') { forgotten = false; out('42/accessories,["accessories-data",[]]'); }
+  });
+  sock.on('error', () => {});
+});
+
 const sonosMock = http.createServer((req, res) => {
   let body = '';
   req.on('data', (c) => { body += c; });
@@ -496,6 +515,24 @@ function call(port, method, p, body) {
   r = await call(port, 'GET', '/api/state');
   assert.strictEqual(r.json.atv, null); assert.ok(!r.json.layout.screens.some((x) => x.key === 'atv'), 'scherm weg na ontkoppelen');
   console.log('ok  apple tv: zoeken, koppelen in twee stappen, bediening, afbeelding, ontkoppelen');
+
+  /* ---- Homebridge-webinterface die de bridge kwijt is ---- */
+  forgotten = true; nudges = [];
+  await new Promise((res) => setTimeout(res, 2100)); // cache verlopen
+  r = await call(port, 'GET', '/api/state');
+  for (let i = 0; i < 20 && !nudges.length; i++) await new Promise((res) => setTimeout(res, 100));
+  assert.strictEqual(nudges.length, 1, 'paneel laat de webinterface opnieuw zoeken');
+  assert.ok(nudges[0].token && nudges[0].token === nudges[0].auth, 'met het eigen token');
+  await new Promise((res) => setTimeout(res, 300));
+  r = await call(port, 'GET', '/api/state');
+  assert.ok(r.json.rooms.some((x) => x.tiles.some((t) => t.id === 'a8')), 'thermostaat weer terug');
+  forgotten = true;
+  await new Promise((res) => setTimeout(res, 2100));
+  await call(port, 'GET', '/api/state');
+  await new Promise((res) => setTimeout(res, 300));
+  assert.strictEqual(nudges.length, 1, 'hooguit eens per 2 minuten');
+  forgotten = false;
+  console.log('ok  homebridge: webinterface die de bridge kwijt is, wordt opnieuw aan het zoeken gezet');
 
   r = await call(port, 'GET', '/');
   assert.strictEqual(r.status, 200);

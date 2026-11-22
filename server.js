@@ -146,6 +146,7 @@ async function hbLoad() {
       hb.cache = { services: both[0] || [], layout: both[1] || [] };
       hb.cacheAt = Date.now();
       hb.error = null;
+      if (hbMissing(hb.cache.services)) hbNudge();
       return hb.cache;
     } catch (e) {
       hb.error = e.message;
@@ -155,6 +156,36 @@ async function hbLoad() {
     }
   })();
   return hb.inflight;
+}
+
+/* De Homebridge-webinterface zoekt de bridges maar één keer, in de eerste minuut na zijn eigen start.
+   Is een (trage) bridge dan nog niet klaar, dan blijven de accessoires weg tot iemand in Homebridge
+   de pagina Accessoires opent. Dat doet het paneel hier zelf: kort verbinden met die pagina
+   (socket.io, namespace /accessories, 'get-accessories') laat de webinterface opnieuw zoeken. */
+function hbMissing(services) {
+  if (!services.length) return true;
+  const have = {};
+  services.forEach((x) => { have[x.uniqueId] = true; });
+  const home = (config.layout && Array.isArray(config.layout.home)) ? config.layout.home : [];
+  return home.some((t) => t.type === 'device' && t.ref && !/^hue:/.test(t.ref) && !have[t.ref]);
+}
+function hbNudge() {
+  if (typeof WebSocket !== 'function' || !hb.token) return;
+  if (hb.nudgeAt && Date.now() - hb.nudgeAt < 120000) return;
+  hb.nudgeAt = Date.now();
+  const url = config.homebridge.url.replace(/\/+$/, '').replace(/^http/, 'ws') + '/socket.io/?EIO=4&transport=websocket&token=' + encodeURIComponent(hb.token);
+  let ws;
+  try { ws = new WebSocket(url); } catch (e) { return; }
+  const done = setTimeout(() => { try { ws.close(); } catch (e) { /* al dicht */ } }, 15000);
+  ws.onmessage = (ev) => {
+    const m = String(ev.data);
+    if (m.charAt(0) === '0') ws.send('40/accessories,' + JSON.stringify({ token: hb.token }));
+    else if (m === '2') ws.send('3');
+    else if (m.indexOf('40/accessories') === 0) { console.log('[homebridge] accessoires ontbreken; webinterface opnieuw laten zoeken'); ws.send('42/accessories,["get-accessories"]'); }
+    else if (m.indexOf('42/accessories,["accessories-data"') === 0) { hb.cacheAt = 0; clearTimeout(done); setTimeout(() => { try { ws.close(); } catch (e) { /* al dicht */ } }, 2000); }
+  };
+  ws.onerror = () => {};
+  ws.onclose = () => clearTimeout(done);
 }
 
 /* Waarden van een service: hap-client vult `values`, anders uit de characteristics halen. */
