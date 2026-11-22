@@ -1,0 +1,7 @@
+[Unit]
+Description=Wifi-waakhond: hotspot van wifi-connect niet laten hangen (huispaneel)
+After=NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/wifi-waakhond.sh

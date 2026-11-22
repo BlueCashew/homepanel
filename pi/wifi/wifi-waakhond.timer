@@ -1,0 +1,9 @@
+[Unit]
+Description=Wifi-waakhond elke 5 minuten (huispaneel)
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target
