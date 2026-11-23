@@ -77,6 +77,8 @@
     fog: svg('<path d="M4 8h16M2 12h18M5 16h15M7 20h10"' + STROKE + '/>')
   };
   ICON.fan = ICON['switch'];
+  ICON.moon = svg('<path d="M20.5 14.6A8.5 8.5 0 0 1 9.4 3.5a8.5 8.5 0 1 0 11.1 11.1z"/>');
+  ICON.moonpartly = svg('<path d="M13.4 9.2A4.6 4.6 0 0 1 7.6 3.4a4.6 4.6 0 1 0 5.8 5.8z"/><path d="M9 20a4 4 0 0 1-.5-7.97 5.5 5.5 0 0 1 10.5 1.3A3.4 3.4 0 0 1 18.6 20H9z"/>');
   ICON.close = svg('<path d="M6 6l12 12M18 6L6 18"' + STROKE + '/>');
   ICON.room = svg('<path d="M3.5 11.2L12 4l8.5 7.2"' + STROKE + '/><path d="M6 9.6V19a1 1 0 0 0 1 1h3.6v-5.2h2.8V20H17a1 1 0 0 0 1-1V9.6"' + STROKE + '/>');
   ICON.chev = svg('<path d="M8 14.5l4-4 4 4"' + STROKE + '/>');
@@ -87,8 +89,10 @@
     if (t.type === 'HueGroup' || t.isGroup) { return ICON.group; }
     return ICON[t.kind] || ICON['switch'];
   }
-  function weatherIcon(text) {
+  function weatherIcon(text, night) {
     text = String(text || '').toLowerCase();
+    if (night && /^(helder|vrijwel helder)$/.test(text)) { return ICON.moon; }
+    if (night && /half/.test(text)) { return ICON.moonpartly; }
     if (/onweer/.test(text)) { return ICON.storm; }
     if (/sneeuw|ijzel|ijsregen/.test(text)) { return ICON.snow; }
     if (/regen|bui|motregen/.test(text)) { return ICON.rain; }
@@ -365,6 +369,7 @@
 
   function makeClock(variant, size) {
     var e = el('div', 'tile k-clock s-' + size);
+    onTap(e, openWorldClock);
     var d = Math.min(cellPx(size).w, cellPx(size).h) - 34;
     var hands = null, i, ticks = '';
     if (variant === 'digital') {
@@ -396,10 +401,11 @@
   function makeWeather(size) {
     var e = el('div', 'tile k-weather s-' + size, '<div class="wx-icon"></div><div class="wx-temp"></div><div class="wx-text"></div><div class="wx-sub"></div>');
     var last = null;
+    onTap(e, openWeather);
     bound.push({ el: e, paint: function () {
       var w = state && state.weather;
       if (!w) { if (last !== '') { last = ''; e.children[0].innerHTML = ICON.partly; } setText(e.children[2], 'Weer'); setText(e.children[3], 'Stel een plaats in bij Instellingen'); return; }
-      if (w.text !== last) { last = w.text; e.children[0].innerHTML = weatherIcon(w.text); }
+      if (w.text + w.night !== last) { last = w.text + w.night; e.children[0].innerHTML = weatherIcon(w.text, w.night); }
       setText(e.children[1], w.temp + '°');
       setText(e.children[2], w.text);
       setText(e.children[3], (w.min !== null ? w.min + '° / ' + w.max + '°' : '') + (size !== '1x1' && w.sunset ? '  ·  zon onder ' + w.sunset : ''));
@@ -526,8 +532,136 @@
     paintAll();
     setTimeout(function () { if (ov) { addClass(ov.el, 'is-open'); addClass(card, 'is-open'); } }, 10);
   }
+  /* Zelfde overlay als de kamers, voor het weerbericht en de wereldklok. */
+  function openInfo(key, title, cls) {
+    var card;
+    closeRoom();
+    ov = { key: key, bound: [] };
+    ov.el = el('div', 'room-ov');
+    ov.card = card = el('div', 'rv-card ' + cls, '<div class="room-title"></div><div class="room-count"></div><div class="rv-close">' + ICON.close + '</div><div class="info-body scroll"></div>');
+    setText(card.children[0], title);
+    onTap(card.children[2], closeRoom);
+    ov.el.addEventListener('touchend', function (ev) { if (ev.target === ov.el) { ev.preventDefault(); lastTouch = Date.now(); closeRoom(); } }, false);
+    ov.el.addEventListener('click', function (ev) { if (ov && ev.target === ov.el && Date.now() - lastTouch > 800) { closeRoom(); } }, false);
+    document.body.appendChild(ov.el);
+    document.body.appendChild(card);
+    setTimeout(function () { if (ov) { addClass(ov.el, 'is-open'); addClass(card, 'is-open'); } }, 10);
+    return { card: card, sub: card.children[1], body: card.children[3] };
+  }
+
+  /* ----------------------------------------------------------- weerbericht */
+  var WINDS = ['N', 'NO', 'O', 'ZO', 'Z', 'ZW', 'W', 'NW'];
+  function dayName(iso, i) {
+    var p = String(iso).split('-'), d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+    if (i === 0) { return 'Vandaag'; }
+    if (i === 1) { return 'Morgen'; }
+    return DAYS[d.getDay()].charAt(0).toUpperCase() + DAYS[d.getDay()].slice(1);
+  }
+  function rainText(rain) {
+    var i, first = -1, last = -1;
+    for (i = 0; i < rain.length; i++) { if (rain[i].mm >= 0.1) { if (first < 0) { first = i; } last = i; } }
+    if (first < 0) { return 'Droog de komende twee uur'; }
+    if (first === 0) { return last < rain.length - 1 ? 'Regen, droog vanaf ' + rain[last + 1].t : 'Regen de komende twee uur'; }
+    return 'Regen vanaf ' + rain[first].t;
+  }
+  function esc(t) { return String(t === null || t === undefined ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+  function deg(v) { return v === null || v === undefined ? '–' : v + '°'; }
+  function drawWeather(o, place, w) {
+    var n = w.now, today = w.days[0] || {}, html = '', i, lo = 99, hi = -99, h;
+    setText(o.sub, place + ' · bijgewerkt ' + two(new Date(w.at).getHours()) + ':' + two(new Date(w.at).getMinutes()));
+    html += '<div class="wd-left"><div class="wd-now"><div class="wd-icon">' + weatherIcon(n.text, n.night) + '</div><div class="wd-temp">' + deg(n.temp) + '</div>' +
+      '<div class="wd-text">' + esc(n.text) + '</div><div class="wd-feel">Voelt als ' + deg(n.feels) + ' · ' + deg(today.min) + ' / ' + deg(today.max) + '</div></div>';
+    function fact(label2, value, sub2) { return '<div class="wd-fact"><div class="wd-fl">' + label2 + '</div><div class="wd-fv">' + esc(value) + '</div><div class="wd-fs">' + esc(sub2 || '') + '</div></div>'; }
+    html += '<div class="wd-facts">' +
+      fact('Wind', (n.dir !== null ? WINDS[Math.round(n.dir / 45) % 8] + ' ' : '') + n.wind + ' km/u', n.gust ? 'stoten ' + n.gust + ' km/u' : '') +
+      fact('Vochtigheid', n.hum + '%', '') +
+      fact('Regen vandaag', (today.mm || 0) + ' mm', today.pop !== null ? today.pop + '% kans' : '') +
+      fact('UV-index', today.uv !== null && today.uv !== undefined ? today.uv : '–', today.uv >= 6 ? 'hoog' : (today.uv >= 3 ? 'matig' : 'laag')) +
+      fact('Zon op', today.sunrise || '–', '') + fact('Zon onder', today.sunset || '–', '') + '</div>';
+    if (w.rain && w.rain.length) {
+      html += '<div class="wd-rain"><div class="wd-rt">' + rainText(w.rain) + '</div><div class="wd-bars">';
+      w.rain.forEach(function (r, k) {
+        h = r.mm >= 0.1 ? Math.max(8, Math.min(100, Math.round(r.mm / 2.5 * 100))) : 0;
+        html += '<div class="wd-bar"><div class="wd-bf" style="height:' + h + '%"></div><div class="wd-bl">' + (k % 2 === 0 ? r.t : '') + '</div></div>';
+      });
+      html += '</div></div>';
+    }
+    html += '</div><div class="wd-right"><div class="wd-sec">7 dagen</div>';
+    w.days.forEach(function (d) { if (d.min !== null && d.min < lo) { lo = d.min; } if (d.max !== null && d.max > hi) { hi = d.max; } });
+    w.days.forEach(function (d, k) {
+      var span = Math.max(1, hi - lo), left = Math.round((d.min - lo) / span * 100), width = Math.max(6, Math.round((d.max - d.min) / span * 100));
+      html += '<div class="wd-day"><div class="wd-dn">' + dayName(d.date, k) + '</div><div class="wd-di">' + weatherIcon(d.text, false) + '</div>' +
+        '<div class="wd-dp">' + (d.pop >= 20 ? d.pop + '%' : '') + '</div><div class="wd-dmin">' + deg(d.min) + '</div>' +
+        '<div class="wd-range"><div class="wd-rf" style="left:' + left + '%;width:' + width + '%"></div></div><div class="wd-dmax">' + deg(d.max) + '</div></div>';
+    });
+    html += '</div><div class="wd-hours"><div class="wd-sec">Komende 24 uur</div><div class="wd-hrow">';
+    for (i = 0; i < w.hours.length && i < 24; i += 2) {
+      h = w.hours[i];
+      html += '<div class="wd-hour"><div class="wd-ht">' + (i === 0 ? 'Nu' : h.t) + '</div><div class="wd-hi">' + weatherIcon(h.text, h.night) + '</div><div class="wd-hv">' + deg(h.temp) + '</div><div class="wd-hp">' + (h.pop >= 20 ? h.pop + '%' : '') + '</div></div>';
+    }
+    html += '</div></div>';
+    o.body.innerHTML = html;
+  }
+  function openWeather() {
+    var o = openInfo('weather', 'Weerbericht', 'info-weather');
+    setText(o.sub, 'Laden…');
+    function load() {
+      api('GET', 'api/weather?t=' + Date.now(), null, function (err, d) {
+        if (!ov || ov.key !== 'weather') { return; }
+        if (err || !d || !d.ok) { setText(o.sub, ''); o.body.innerHTML = '<div class="info-msg">' + esc((d && d.error) || err || 'Geen weerbericht') + '</div>'; return; }
+        drawWeather(o, d.place || '', d.weather);
+      });
+    }
+    load();
+    /* Bijwerken zolang hij openstaat; de server haalt elk kwartier nieuw weer op. */
+    ov.timer = setInterval(load, 5 * 60 * 1000);
+  }
+
+  /* ------------------------------------------------------------ wereldklok */
+  function clockFace() {
+    var i, ticks = '';
+    for (i = 0; i < 12; i++) {
+      ticks += '<line x1="50" y1="' + (i % 3 === 0 ? 6 : 8) + '" x2="50" y2="' + (i % 3 === 0 ? 16 : 13) + '" stroke="currentColor" stroke-width="' + (i % 3 === 0 ? 3.4 : 2.2) + '" stroke-linecap="round" transform="rotate(' + (i * 30) + ' 50 50)"/>';
+    }
+    return '<svg class="wc-svg" viewBox="0 0 100 100"><circle class="wc-dial" cx="50" cy="50" r="48"/>' + ticks +
+      '<line x1="50" y1="50" x2="50" y2="27" stroke="currentColor" stroke-width="4.5" stroke-linecap="round"/>' +
+      '<line x1="50" y1="50" x2="50" y2="15" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>' +
+      '<line x1="50" y1="56" x2="50" y2="13" stroke="#e8792c" stroke-width="1.4" stroke-linecap="round"/>' +
+      '<circle cx="50" cy="50" r="3.2" fill="currentColor"/></svg>';
+  }
+  function openWorldClock() {
+    var o = openInfo('clock', 'Wereldklok', 'info-clock'), list = [{ name: 'Hier', off: null }].concat((state && state.clocks) || []), items = [];
+    setText(o.sub, list.length > 1 ? '' : 'Voeg steden toe bij Instellingen');
+    list.forEach(function (c) {
+      var e = el('div', 'wc', clockFace() + '<div class="wc-name"></div><div class="wc-time"></div><div class="wc-rel"></div>');
+      setText(e.children[1], c.name);
+      o.body.appendChild(e);
+      items.push({ c: c, e: e, hands: e.getElementsByTagName('line') });
+    });
+    o.body.appendChild(el('div', 'rowbreak'));
+    ov.tick = function (now) {
+      var here = -now.getTimezoneOffset(), today = now.getFullYear() * 400 + now.getMonth() * 32 + now.getDate();
+      items.forEach(function (it) {
+        var off = it.c.off === null ? here : it.c.off, t = new Date(now.getTime() + off * 60000);
+        var h = t.getUTCHours(), m = t.getUTCMinutes(), s = t.getUTCSeconds(), n = it.hands.length;
+        var day = t.getUTCFullYear() * 400 + t.getUTCMonth() * 32 + t.getUTCDate(), diff = off - here, rel;
+        it.hands[n - 3].setAttribute('transform', 'rotate(' + ((h % 12) * 30 + m / 2) + ' 50 50)');
+        it.hands[n - 2].setAttribute('transform', 'rotate(' + (m * 6 + s / 10) + ' 50 50)');
+        it.hands[n - 1].setAttribute('transform', 'rotate(' + (s * 6) + ' 50 50)');
+        setText(it.e.children[2], two(h) + ':' + two(m));
+        rel = day > today ? 'Morgen' : (day < today ? 'Gisteren' : 'Vandaag');
+        if (it.c.off !== null) { rel += diff === 0 ? ', zelfde tijd' : ', ' + (diff > 0 ? '+' : '−') + Math.floor(Math.abs(diff) / 60) + (Math.abs(diff) % 60 ? ':' + two(Math.abs(diff) % 60) : '') + ' uur'; }
+        else { rel = DAYS[now.getDay()] + ' ' + now.getDate() + ' ' + MONTHS[now.getMonth()]; }
+        setText(it.e.children[3], rel);
+        it.e.className = 'wc' + (h < 7 || h >= 19 ? ' is-night' : '');
+      });
+    };
+    ov.tick(new Date());
+  }
+
   function closeRoom() {
     if (!ov) { return; }
+    if (ov.timer) { clearInterval(ov.timer); }
     if (ov.el.parentNode) { ov.el.parentNode.removeChild(ov.el); }
     if (ov.card.parentNode) { ov.card.parentNode.removeChild(ov.card); }
     ov = null;
@@ -904,6 +1038,7 @@
   function tickClocks() {
     var now = new Date(), i;
     for (i = 0; i < clocks.length; i++) { clocks[i](now); }
+    if (ov && ov.tick) { ov.tick(now); }
   }
   function tick() {
     var d = new Date();

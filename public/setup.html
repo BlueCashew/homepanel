@@ -205,6 +205,19 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
       <button id="b2">Plaats opslaan</button>
       <div class="msg" id="m2"></div>
     </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 5h-2v6l5 3 1-1.7-4-2.3V7z"/></svg></div>
+        <h2>Wereldklok</h2>
+      </div>
+      <p>Tik op de klok op het paneel om deze steden te zien.</p>
+      <div class="scr-list" id="clocks">Laden…</div>
+      <label for="wc-name">Stad toevoegen</label>
+      <input id="wc-name" autocorrect="off" placeholder="bijvoorbeeld Lissabon">
+      <button id="wc-add">Toevoegen</button>
+      <div class="msg" id="m-wc"></div>
+    </div>
   </div>
 
   <div class="col">
@@ -353,6 +366,7 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
       $('status').textContent = 'Huispaneel' + (d.update && d.update.current ? ' · versie ' + short(d.update.current) : '');
       pill('pill-hb', h.ok ? 'good' : (h.configured ? 'bad' : ''), h.ok ? 'Gekoppeld' : (h.configured ? 'Login werkt niet' : 'Niet gekoppeld'));
       pill('pill-wx', d.place ? 'good' : '', d.place || 'Geen plaats');
+      drawClocks(d.clocks || []);
       if (d.place && !$('pl').value) { $('pl').placeholder = d.place; }
     });
   }
@@ -363,6 +377,41 @@ button.secondary { background: rgba(255,255,255,.12); color: #f4f0e6; margin-top
       if (d.ok) { $('p').value = ''; }
       status();
     });
+  };
+  /* Wereldklok: steden toevoegen, verplaatsen en weghalen. */
+  function drawClocks(list) {
+    var box = $('clocks');
+    box.innerHTML = '';
+    if (!list.length) { box.textContent = 'Nog geen steden.'; }
+    list.forEach(function (c, i) {
+      var r = document.createElement('div'), h = Math.floor(Math.abs(c.off) / 60), m = Math.abs(c.off) % 60;
+      r.className = 'scr';
+      r.innerHTML = '<div class="scr-name"></div><div class="scr-mv scr-up">▲</div><div class="scr-mv scr-down">▼</div><div class="grp-btn grp-del">Weg</div>';
+      r.children[0].textContent = c.name + '  ';
+      var sm = document.createElement('small');
+      sm.textContent = 'UTC' + (c.off < 0 ? '−' : '+') + h + (m ? ':' + (m < 10 ? '0' : '') + m : '');
+      r.children[0].appendChild(sm);
+      if (i === 0) { r.children[1].className += ' is-off'; }
+      if (i === list.length - 1) { r.children[2].className += ' is-off'; }
+      r.children[1].onclick = function () { if (i > 0) { clockCall({ clock: 'move', index: i, dir: -1 }); } };
+      r.children[2].onclick = function () { if (i < list.length - 1) { clockCall({ clock: 'move', index: i, dir: 1 }); } };
+      r.children[3].onclick = function () { clockCall({ clock: 'remove', index: i }); };
+      box.appendChild(r);
+    });
+  }
+  function clockCall(body, okText) {
+    var m = $('m-wc');
+    m.className = 'msg'; m.textContent = 'Bezig…';
+    call('POST', body, function (d) {
+      show(m, d, okText || 'Opgeslagen.');
+      if (d.ok) { drawClocks(d.clocks || []); }
+    });
+  }
+  $('wc-add').onclick = function () {
+    var name = $('wc-name').value.replace(/^\s+|\s+$/g, '');
+    if (!name) { return; }
+    clockCall({ clock: 'add', name: name }, name + ' toegevoegd.');
+    $('wc-name').value = '';
   };
   $('b2').onclick = function () {
     $('m2').className = 'msg'; $('m2').textContent = 'Bezig…';

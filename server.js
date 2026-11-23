@@ -40,6 +40,7 @@ function loadConfig() {
   cfg.hue = Object.assign({ host: '', key: '', name: '' }, cfg.hue || {});
   cfg.atv = Object.assign({ id: '', name: '' }, cfg.atv || {});
   cfg.groups = Array.isArray(cfg.groups) ? cfg.groups : [];
+  cfg.clocks = Array.isArray(cfg.clocks) ? cfg.clocks : null; // null = standaardlijst
   cfg.update = Object.assign({ auto: false, repo: 'BlueCashew/homepanel', branch: 'main' }, cfg.update || {});
   cfg.layout = Object.assign({ theme: 'warm', mode: 'light', schedule: 'sun', darkFrom: '21:00', darkTo: '07:00', home: null, screens: null }, cfg.layout || {});
   cfg.hide = cfg.hide || [];
@@ -49,7 +50,7 @@ const config = loadConfig();
 const LISTEN_PORT = Number(process.env.HUISPANEEL_PORT) || config.port;
 function saveConfig() {
   if (SELFTEST || DEMO) return;
-  const out = { port: config.port, homebridge: config.homebridge, hue: config.hue, atv: config.atv, groups: config.groups, sonos: config.sonos, weather: config.weather, update: config.update, layout: config.layout, hide: config.hide };
+  const out = { port: config.port, homebridge: config.homebridge, hue: config.hue, atv: config.atv, groups: config.groups, clocks: config.clocks, sonos: config.sonos, weather: config.weather, update: config.update, layout: config.layout, hide: config.hide };
   fs.writeFileSync(CONFIG_FILE, JSON.stringify(out, null, 2) + '\n', { mode: 0o600 });
   try { fs.chmodSync(CONFIG_FILE, 0o600); } catch (e) { /* niet erg */ }
 }
@@ -1511,23 +1512,57 @@ const WMO = {
 };
 const weather = { data: null, at: 0, busy: false };
 
+const METEO = process.env.HUISPANEEL_METEO || 'https://api.open-meteo.com';
+const GEO = process.env.HUISPANEEL_GEO || METEO.replace('api.open-meteo', 'geocoding-api.open-meteo');
+function wx(code, day) { return { text: WMO[code] || '', night: day === 0 }; }
+/* Uitgebreid weerbericht uit één Open-Meteo-antwoord. Het overzicht (weather.data) blijft klein,
+   want dat gaat elke paar seconden naar het paneel; de rest haalt het paneel op bij het openen. */
+function parseWeather(j) {
+  const c = j.current || {}, h = j.hourly || {}, d = j.daily || {}, m = j.minutely_15 || {};
+  const r = (x) => (typeof x === 'number' ? Math.round(x) : null);
+  const r1 = (x) => (typeof x === 'number' ? Math.round(x * 10) / 10 : null);
+  const hm = (t) => String(t || '').slice(11, 16);
+  const nowHour = String(c.time || '').slice(0, 13);
+  let i0 = (h.time || []).findIndex((t) => t.slice(0, 13) === nowHour);
+  if (i0 < 0) i0 = 0;
+  const hours = [];
+  for (let i = i0; i < (h.time || []).length && hours.length < 25; i++) {
+    hours.push(Object.assign({ t: hm(h.time[i]), temp: r((h.temperature_2m || [])[i]), pop: r((h.precipitation_probability || [])[i]) }, wx((h.weather_code || [])[i], (h.is_day || [])[i])));
+  }
+  const nowQ = String(c.time || '').slice(0, 16);
+  let q0 = (m.time || []).findIndex((t) => t >= nowQ.slice(0, 14) + String(Math.floor(Number(nowQ.slice(14, 16)) / 15) * 15).padStart(2, '0'));
+  if (q0 < 0) q0 = 0;
+  const rain = (m.time || []).slice(q0, q0 + 8).map((t, k) => ({ t: hm(t), mm: r1((m.precipitation || [])[q0 + k]) || 0 }));
+  const days = (d.time || []).map((t, i) => Object.assign({
+    date: t, max: r((d.temperature_2m_max || [])[i]), min: r((d.temperature_2m_min || [])[i]),
+    pop: r((d.precipitation_probability_max || [])[i]), mm: r1((d.precipitation_sum || [])[i]), wind: r((d.wind_speed_10m_max || [])[i]),
+    uv: r((d.uv_index_max || [])[i]), sunrise: hm((d.sunrise || [])[i]), sunset: hm((d.sunset || [])[i]),
+  }, wx((d.weather_code || [])[i], 1)));
+  const today = days[0] || {};
+  const now = Object.assign({
+    temp: r(c.temperature_2m), feels: r(c.apparent_temperature), hum: r(c.relative_humidity_2m),
+    wind: r(c.wind_speed_10m), gust: r(c.wind_gusts_10m), dir: r(c.wind_direction_10m), mm: r1(c.precipitation),
+  }, wx(c.weather_code, c.is_day));
+  return {
+    summary: { temp: now.temp, text: now.text, night: now.night, wind: now.wind, max: today.max === undefined ? null : today.max, min: today.min === undefined ? null : today.min, sunrise: today.sunrise || '', sunset: today.sunset || '' },
+    detail: { now, hours, rain, days, at: Date.now() },
+  };
+}
 function weatherTick() {
   const w = config.weather;
   if (DEMO || typeof w.latitude !== 'number' || typeof w.longitude !== 'number') return;
   if (weather.busy || Date.now() - weather.at < 15 * 60 * 1000) return;
   weather.busy = true;
-  const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + w.latitude + '&longitude=' + w.longitude +
-    '&current=temperature_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset&forecast_days=1&timezone=auto';
-  request('GET', url, { timeout: 10000 }).then((r) => {
+  const url = METEO + '/v1/forecast?latitude=' + w.latitude + '&longitude=' + w.longitude +
+    '&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation,is_day' +
+    '&hourly=temperature_2m,weather_code,precipitation_probability,is_day' +
+    '&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,uv_index_max' +
+    '&minutely_15=precipitation&forecast_minutely_15=12&forecast_days=7&timezone=auto';
+  request('GET', url, { timeout: 15000 }).then((r) => {
     if (r.status !== 200) throw new Error('HTTP ' + r.status);
-    const j = JSON.parse(r.body.toString('utf8'));
-    const d = j.daily || {};
-    weather.data = {
-      temp: Math.round(j.current.temperature_2m), text: WMO[j.current.weather_code] || '', wind: Math.round(j.current.wind_speed_10m),
-      max: d.temperature_2m_max ? Math.round(d.temperature_2m_max[0]) : null,
-      min: d.temperature_2m_min ? Math.round(d.temperature_2m_min[0]) : null,
-      sunrise: d.sunrise ? String(d.sunrise[0]).slice(11, 16) : '', sunset: d.sunset ? String(d.sunset[0]).slice(11, 16) : '',
-    };
+    const p = parseWeather(JSON.parse(r.body.toString('utf8')));
+    weather.data = p.summary;
+    weather.detail = p.detail;
     weather.at = Date.now();
   }).catch((e) => {
     console.log('[weer] ophalen mislukt: ' + e.message);
@@ -1535,12 +1570,58 @@ function weatherTick() {
   }).then(() => { weather.busy = false; });
 }
 
+/* ------------------------------------------------------------- wereldklok */
+/* iOS 9 kent geen tijdzones in JavaScript; daarom rekent de server het verschil met UTC uit
+   en telt het paneel dat op bij zijn eigen klok. */
+const DEFAULT_CLOCKS = [
+  { name: 'Londen', tz: 'Europe/London' }, { name: 'New York', tz: 'America/New_York' },
+  { name: 'Tokio', tz: 'Asia/Tokyo' }, { name: 'Sydney', tz: 'Australia/Sydney' },
+];
+function tzOffset(tz, at) {
+  const f = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' });
+  const p = {};
+  f.formatToParts(at).forEach((x) => { p[x.type] = x.value; });
+  const asUtc = Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour) % 24, Number(p.minute));
+  return Math.round((asUtc - Math.floor(at.getTime() / 60000) * 60000) / 60000);
+}
+const clockCache = { at: 0, key: '', list: [] };
+function clocksOut() {
+  const list = config.clocks || DEFAULT_CLOCKS, key = JSON.stringify(list);
+  if (key === clockCache.key && Date.now() - clockCache.at < 5 * 60 * 1000) return clockCache.list;
+  const now = new Date();
+  clockCache.list = list.map((c) => { try { return { name: c.name, tz: c.tz, off: tzOffset(c.tz, now) }; } catch (e) { return null; } }).filter(Boolean);
+  clockCache.at = Date.now(); clockCache.key = key;
+  return clockCache.list;
+}
+async function clockSetup(b) {
+  const list = (config.clocks || DEFAULT_CLOCKS).slice();
+  if (b.clock === 'add') {
+    if (list.length >= 8) throw new Error('Maximaal 8 klokken');
+    const g = await geocode(String(b.name || '').trim());
+    if (!g.tz) throw new Error('Geen tijdzone gevonden voor ' + g.place);
+    list.push({ name: g.name, tz: g.tz });
+  } else if (b.clock === 'remove') {
+    const i = Number(b.index);
+    if (!(i >= 0 && i < list.length)) throw new Error('Onbekende klok');
+    list.splice(i, 1);
+  } else if (b.clock === 'move') {
+    const i = Number(b.index), j = i + (Number(b.dir) < 0 ? -1 : 1);
+    if (!(i >= 0 && i < list.length && j >= 0 && j < list.length)) throw new Error('Kan niet verplaatsen');
+    const t = list[i]; list[i] = list[j]; list[j] = t;
+  } else if (b.clock === 'reset') {
+    config.clocks = null; saveConfig(); clockCache.key = ''; return;
+  } else throw new Error('Onbekende opdracht');
+  config.clocks = list;
+  clockCache.key = '';
+  saveConfig();
+}
+
 async function geocode(place) {
-  const r = await request('GET', 'https://geocoding-api.open-meteo.com/v1/search?count=1&language=nl&format=json&name=' + encodeURIComponent(place), { timeout: 10000 });
+  const r = await request('GET', GEO + '/v1/search?count=1&language=nl&format=json&name=' + encodeURIComponent(place), { timeout: 10000 });
   const j = r.status === 200 ? JSON.parse(r.body.toString('utf8')) : {};
   const hit = (j.results || [])[0];
   if (!hit) throw new Error('Plaats niet gevonden: ' + place);
-  return { latitude: hit.latitude, longitude: hit.longitude, place: hit.name + (hit.country_code ? ' (' + hit.country_code + ')' : '') };
+  return { latitude: hit.latitude, longitude: hit.longitude, name: hit.name, tz: hit.timezone || '', place: hit.name + (hit.country_code ? ' (' + hit.country_code + ')' : '') };
 }
 
 /* Instellen via de pagina /setup. Een login wordt alleen bewaard als Homebridge hem accepteert. */
@@ -1551,6 +1632,7 @@ async function setup(b) {
   if (b.update === 'auto') { config.update.auto = !!b.value; saveConfig(); out.update = updStatus(); return out; }
   if (b.hue === 'pair') { await huePairStart(b.host); out.hue = hueStatus(); return out; }
   if (b.atv) { out.result = await atvSetup(b); out.atv = atvStatus(); return out; }
+  if (b.clock) { await clockSetup(b); out.clocks = clocksOut(); return out; }
   if (b.hue === 'unpair') {
     config.hue.key = ''; config.hue.name = ''; hue.cache = null; hue.error = null; hue.pairing = null;
     saveConfig(); out.hue = hueStatus(); return out;
@@ -1581,6 +1663,21 @@ async function setup(b) {
 }
 
 /* ------------------------------------------------------------------ demo */
+
+/* Verzonnen maar realistisch weerbericht voor de demo. */
+function demoWeather() {
+  const codes = [2, 3, 61, 80, 1, 0, 3], now = new Date();
+  const hours = [];
+  for (let i = 0; i < 25; i++) {
+    const hh = (now.getHours() + i) % 24;
+    hours.push({ t: String(hh).padStart(2, '0') + ':00', temp: Math.round(7 + 4 * Math.sin((hh - 9) / 24 * 2 * Math.PI)), pop: [0, 5, 10, 40, 70, 30][i % 6], text: WMO[codes[i % 7]], night: hh < 8 || hh >= 17 });
+  }
+  const rain = [];
+  for (let k = 0; k < 8; k++) { const t = new Date(now.getTime() + k * 15 * 60000); rain.push({ t: String(t.getHours()).padStart(2, '0') + ':' + String(Math.floor(t.getMinutes() / 15) * 15).padStart(2, '0'), mm: [0, 0, 0.2, 0.8, 1.5, 0.6, 0.1, 0][k] }); }
+  const days = [];
+  for (let i = 0; i < 7; i++) { const t = new Date(now.getTime() + i * 86400000); days.push({ date: t.toISOString().slice(0, 10), max: 11 - (i % 3), min: 4 + (i % 2), pop: [20, 70, 40, 10, 0, 60, 30][i], mm: [0.4, 6.2, 1.1, 0, 0, 3.5, 0.8][i], wind: 18 + i * 3, uv: 1, sunrise: '07:52', sunset: '16:47', text: WMO[codes[i]], night: false }); }
+  return { now: { temp: 9, feels: 6, hum: 84, wind: 14, gust: 32, dir: 225, mm: 0, text: 'Half bewolkt', night: now.getHours() < 8 || now.getHours() >= 17 }, hours, rain, days, at: Date.now() };
+}
 
 const demo = {
   rooms: [
@@ -1660,10 +1757,10 @@ async function getState() {
     demo.rooms.forEach((r) => { r.key = r.key || 'hb:' + r.name; r.tiles.forEach((t) => { t.room = r.name; }); });
     const rooms = demo.rooms.map((r) => Object.assign({}, r, { tiles: r.tiles.slice() }));
     const lights = applyGroups(rooms);
-    return { ok: true, demo: true, time: Date.now(), version: 'demo', homebridge: { ok: true }, rooms, lights, sonos: demo.sonos, weather: demo.weather, layout: layoutOut(rooms), favorites: demo.favorites, atv: demo.atv };
+    return { ok: true, demo: true, time: Date.now(), version: 'demo', homebridge: { ok: true }, rooms, lights, sonos: demo.sonos, weather: demo.weather, clocks: clocksOut(), layout: layoutOut(rooms), favorites: demo.favorites, atv: demo.atv };
   }
   weatherTick();
-  const out = { ok: true, time: Date.now(), version: currentVersion(), homebridge: { ok: true }, rooms: [], sonos: null, weather: weather.data };
+  const out = { ok: true, time: Date.now(), version: currentVersion(), homebridge: { ok: true }, rooms: [], sonos: null, weather: weather.data, clocks: clocksOut() };
   let hb2 = null, hue2 = null;
   const jobs = [
     hbLoad().then((d) => { hb2 = d; }, (e) => { out.homebridge = { ok: false, error: e.message }; }),
@@ -1725,6 +1822,11 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, STATIC[u.pathname][1], fs.readFileSync(f));
     }
     if (req.method === 'GET' && u.pathname === '/api/state') return json(res, 200, await getState());
+    if (req.method === 'GET' && u.pathname === '/api/weather') {
+      const det = DEMO ? demoWeather() : weather.detail;
+      if (!det) return json(res, 200, { ok: false, error: config.weather.place ? 'Nog geen weerbericht; probeer het zo nog eens' : 'Stel eerst een plaats in bij Instellingen' });
+      return json(res, 200, { ok: true, place: DEMO ? 'Utrecht (NL)' : config.weather.place, weather: det });
+    }
     if (req.method === 'POST' && u.pathname === '/api/layout') {
       try { saveLayout(await readBody(req, 60000)); } catch (e) { return json(res, 400, { ok: false, error: e.message }); }
       return json(res, 200, { ok: true });
@@ -1743,7 +1845,7 @@ const server = http.createServer(async (req, res) => {
       if (config.homebridge.username && !hb.token && !hb.error) { try { await hbLoad(); } catch (e) { /* status hieronder */ } }
       if (config.hue.key && !hue.cache && !hue.error) { try { await hueLoad(); } catch (e) { /* status hieronder */ } }
       if (!DEMO) { try { await updCheck(false); } catch (e) { upd.error = upd.busy ? upd.error : e.message; } }
-      return json(res, 200, { ok: true, homebridge: { configured: !!config.homebridge.username, ok: !!hb.token && !hb.error, error: hb.error }, hue: hueStatus(), atv: atvStatus(), update: updStatus(), place: config.weather.place || '' });
+      return json(res, 200, { ok: true, homebridge: { configured: !!config.homebridge.username, ok: !!hb.token && !hb.error, error: hb.error }, hue: hueStatus(), atv: atvStatus(), update: updStatus(), place: config.weather.place || '', clocks: clocksOut(), clocksDefault: !config.clocks });
     }
     if (req.method === 'POST' && u.pathname === '/api/sonos') {
       const b = await readBody(req);

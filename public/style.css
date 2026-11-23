@@ -400,3 +400,62 @@ body.mode-dark.theme-zand { background: #1a1917; color: #ece6dc;
 .theme-zand .rv-close { background: rgba(45,38,29,.08); }
 .mode-dark .rv-close { background: rgba(255,255,255,.12); }
 .page-empty { position: absolute; left: 0; right: 0; top: 45%; text-align: center; font-size: 18px; opacity: .7; }
+
+/* --------------------------------------------- weerbericht en wereldklok (overlay) */
+.info-body { position: absolute; left: 28px; right: 28px; top: 104px; bottom: 24px; overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.info-msg { margin-top: 60px; text-align: center; font-size: 18px; opacity: .75; }
+.wd-left { float: left; width: 47%; }
+.wd-right { float: right; width: 50%; }
+.wd-now { position: relative; height: 128px; padding-left: 118px; }
+.wd-icon { position: absolute; left: 4px; top: 10px; width: 96px; height: 96px; }
+.wd-icon svg, .wd-di svg, .wd-hi svg { width: 100%; height: 100%; }
+.wd-temp { font-size: 64px; line-height: 70px; font-weight: 200; letter-spacing: -2px; }
+.wd-text { font-size: 19px; font-weight: 600; line-height: 24px; }
+.wd-feel { font-size: 14px; line-height: 22px; opacity: .7; }
+.wd-facts { overflow: hidden; margin-top: 6px; }
+.wd-fact { float: left; width: 31.4%; height: 74px; margin: 0 2.9% 10px 0; padding: 10px 12px; border-radius: 16px; background: rgba(255,255,255,.13); -webkit-box-sizing: border-box; box-sizing: border-box; }
+.wd-fact:nth-child(3n) { margin-right: 0; }
+.wd-fl { font-size: 12px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; opacity: .6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wd-fv { font-size: 19px; font-weight: 600; line-height: 26px; white-space: nowrap; }
+.wd-fs { font-size: 12px; opacity: .65; white-space: nowrap; }
+.wd-rain { margin-top: 2px; padding: 12px 14px 8px 14px; border-radius: 16px; background: rgba(255,255,255,.13); }
+.wd-rt { font-size: 15px; font-weight: 600; }
+.wd-bars { height: 62px; margin-top: 6px; }
+.wd-bar { position: relative; float: left; width: 12.5%; height: 62px; }
+.wd-bf { position: absolute; left: 18%; right: 18%; bottom: 18px; max-height: 44px; border-radius: 4px 4px 0 0; background: #5fa8e8; }
+.wd-bar:before { content: ""; position: absolute; left: 18%; right: 18%; bottom: 18px; height: 2px; border-radius: 1px; background: currentColor; opacity: .2; }
+.wd-bl { position: absolute; left: 0; right: 0; bottom: 0; text-align: center; font-size: 11px; opacity: .6; }
+.wd-sec { font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; opacity: .6; margin: 4px 0 6px 2px; }
+.wd-day { position: relative; height: 48px; line-height: 48px; border-bottom: 1px solid rgba(255,255,255,.1); font-size: 16px; }
+.wd-day:last-child { border-bottom: 0; }
+.wd-dn { position: absolute; left: 2px; width: 108px; font-weight: 600; }
+.wd-di { position: absolute; left: 112px; top: 11px; width: 26px; height: 26px; }
+.wd-dp { position: absolute; left: 146px; width: 44px; font-size: 13px; font-weight: 700; opacity: .8; }
+.wd-dmin { position: absolute; left: 190px; width: 40px; text-align: right; opacity: .65; }
+.wd-range { position: absolute; left: 242px; right: 52px; top: 21px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.14); }
+.wd-rf { position: absolute; top: 0; bottom: 0; border-radius: 3px; background: -webkit-linear-gradient(left, #6fc0e8, #f2b44c); background: linear-gradient(to right, #6fc0e8, #f2b44c); }
+.wd-dmax { position: absolute; right: 2px; width: 44px; text-align: right; font-weight: 600; }
+.wd-hours { clear: both; padding-top: 14px; }
+.wd-hrow { overflow: hidden; padding: 10px 0 6px 0; border-radius: 16px; background: rgba(255,255,255,.13); }
+.wd-hour { float: left; width: 8.333%; text-align: center; }
+.wd-ht { font-size: 13px; font-weight: 600; opacity: .75; }
+.wd-hi { width: 28px; height: 28px; margin: 6px auto 4px auto; }
+.wd-hv { font-size: 17px; font-weight: 600; }
+.wd-hp { height: 16px; font-size: 12px; font-weight: 700; opacity: .75; }
+.wc { position: relative; float: left; width: 23.5%; height: 268px; margin: 0 2% 16px 0; border-radius: 24px; background: rgba(255,255,255,.13); text-align: center; }
+.wc:nth-child(4n) { margin-right: 0; }
+.wc-svg { display: block; width: 150px; height: 150px; margin: 22px auto 10px auto; }
+.wc-dial { fill: rgba(255,255,255,.16); }
+.wc.is-night .wc-dial { fill: rgba(0,0,0,.35); }
+.wc.is-night { background: rgba(0,0,0,.18); }
+.wc-name { font-size: 19px; font-weight: 600; line-height: 24px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 10px; }
+.wc-time { font-size: 15px; font-weight: 600; opacity: .8; line-height: 22px; }
+.wc-rel { font-size: 13px; opacity: .6; line-height: 18px; padding: 0 8px; }
+.info-body .rowbreak { clear: both; height: 0; }
+.theme-zand .wd-fact, .theme-zand .wd-rain, .theme-zand .wd-hrow, .theme-zand .wc { background: rgba(45,38,29,.06); }
+.theme-zand .wd-range, .theme-zand .wc-dial { background: rgba(45,38,29,.1); fill: rgba(45,38,29,.08); }
+.theme-zand .wd-day { border-bottom-color: rgba(45,38,29,.1); }
+.theme-zand .wc.is-night { background: rgba(45,38,29,.14); }
+.mode-dark .wd-fact, .mode-dark .wd-rain, .mode-dark .wd-hrow, .mode-dark .wc { background: rgba(255,255,255,.08); }
+.mode-dark.theme-zand .wd-range { background: rgba(255,255,255,.14); }
+.mode-dark.theme-zand .wc-dial { fill: rgba(255,255,255,.1); }

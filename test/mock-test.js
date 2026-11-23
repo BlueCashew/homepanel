@@ -168,6 +168,27 @@ const hueMock = http.createServer((req, res) => {
   });
 });
 
+/* Nagebootste Open-Meteo: weerbericht en plaatsnamen. */
+let meteoUrl = '';
+const meteoMock = http.createServer((req, res) => {
+  const send = (o) => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(o)); };
+  meteoUrl = req.url;
+  if (req.url.indexOf('/v1/search') === 0) {
+    if (/name=Tokio/.test(req.url)) return send({ results: [{ name: 'Tokio', latitude: 35.7, longitude: 139.7, country_code: 'JP', timezone: 'Asia/Tokyo' }] });
+    return send({});
+  }
+  const day = (i) => '2026-11-' + (23 + i);
+  const hours = [], q = [];
+  for (let i = 0; i < 48; i++) hours.push(day(Math.floor(i / 24)) + 'T' + String(i % 24).padStart(2, '0') + ':00');
+  for (let i = 0; i < 12; i++) q.push('2026-11-23T' + String(21 + Math.floor((15 + i * 15) / 60)).padStart(2, '0') + ':' + String((15 + i * 15) % 60).padStart(2, '0'));
+  send({
+    current: { time: '2026-11-23T21:15', temperature_2m: 6.4, apparent_temperature: 3.2, relative_humidity_2m: 88, weather_code: 0, wind_speed_10m: 12.6, wind_direction_10m: 230, wind_gusts_10m: 30.1, precipitation: 0, is_day: 0 },
+    hourly: { time: hours, temperature_2m: hours.map((_, i) => i), weather_code: hours.map(() => 61), precipitation_probability: hours.map(() => 40), is_day: hours.map((t) => (Number(t.slice(11, 13)) >= 8 && Number(t.slice(11, 13)) < 17 ? 1 : 0)) },
+    daily: { time: [0, 1, 2, 3, 4, 5, 6].map(day), weather_code: [3, 61, 80, 0, 1, 2, 3], temperature_2m_max: [9.6, 8, 7, 10, 11, 9, 8], temperature_2m_min: [2.4, 3, 1, 4, 5, 3, 2], sunrise: [0, 1, 2, 3, 4, 5, 6].map((i) => day(i) + 'T08:12'), sunset: [0, 1, 2, 3, 4, 5, 6].map((i) => day(i) + 'T16:38'), precipitation_sum: [0.4, 6, 2, 0, 0, 1, 0], precipitation_probability_max: [30, 90, 60, 0, 5, 20, 10], wind_speed_10m_max: [20, 30, 25, 10, 12, 18, 22], uv_index_max: [0.6, 0.3, 0.4, 1, 1, 0.8, 0.5] },
+    minutely_15: { time: q, precipitation: [0, 0, 0.3, 1.2, 0.5, 0, 0, 0, 0, 0, 0, 0] },
+  });
+});
+
 function call(port, method, p, body) {
   return new Promise((resolve, reject) => {
     const req = http.request({ host: '127.0.0.1', port, method, path: p, headers: { 'Content-Type': 'application/json' } }, (res) => {
@@ -189,6 +210,9 @@ function call(port, method, p, body) {
 (async () => {
   await new Promise((r) => hbMock.listen(0, '127.0.0.1', r));
   await new Promise((r) => hueMock.listen(0, '127.0.0.1', r));
+  await new Promise((r) => meteoMock.listen(0, '127.0.0.1', r));
+  process.env.HUISPANEEL_METEO = 'http://127.0.0.1:' + meteoMock.address().port;
+  process.env.HUISPANEEL_GEO = process.env.HUISPANEEL_METEO;
   let sonosUp = true;
   await new Promise((r) => { sonosMock.once('error', () => { sonosUp = false; r(); }); sonosMock.listen(1400, '127.0.0.1', r); });
 
@@ -199,6 +223,7 @@ function call(port, method, p, body) {
     sonos: { enabled: sonosUp, host: '127.0.0.1' },
     hue: { host: 'http://127.0.0.1:' + hueMock.address().port },
     hide: ['Los schakelaartje'],
+    weather: { latitude: 52.09, longitude: 5.12, place: 'Utrecht (NL)' },
   }));
   process.env.HUISPANEEL_CONFIG = cfgFile;
   process.env.HUISPANEEL_DATA = fs.mkdtempSync(path.join(os.tmpdir(), 'huispaneel-data-'));
@@ -609,6 +634,38 @@ function call(port, method, p, body) {
   assert.strictEqual(r.status, 404);
   console.log('ok  statische bestanden');
 
-  app.server.close(); hbMock.close(); sonosMock.close(); hueMock.close();
+  /* ---- weerbericht en wereldklok ---- */
+  for (let i = 0; i < 30 && !(r = await call(port, 'GET', '/api/state')).json.weather; i++) await new Promise((res2) => setTimeout(res2, 100));
+  assert.ok(/forecast_days=7/.test(meteoUrl) || /search/.test(meteoUrl), meteoUrl);
+  assert.deepStrictEqual(r.json.weather, { temp: 6, text: 'Helder', night: true, wind: 13, max: 10, min: 2, sunrise: '08:12', sunset: '16:38' }, 'overzicht blijft klein');
+  r = await call(port, 'GET', '/api/weather');
+  const wd = r.json.weather;
+  assert.strictEqual(r.json.place, 'Utrecht (NL)');
+  assert.deepStrictEqual(wd.now, { temp: 6, feels: 3, hum: 88, wind: 13, gust: 30, dir: 230, mm: 0, text: 'Helder', night: true });
+  assert.strictEqual(wd.hours.length, 25);
+  assert.deepStrictEqual(wd.hours[0], { t: '21:00', temp: 21, pop: 40, text: 'Lichte regen', night: true }, 'begint bij het huidige uur');
+  assert.strictEqual(wd.hours[24].t, '21:00');
+  assert.deepStrictEqual(wd.rain.map((x) => x.t), ['21:15', '21:30', '21:45', '22:00', '22:15', '22:30', '22:45', '23:00'], 'regen in kwartieren vanaf nu');
+  assert.deepStrictEqual(wd.rain.map((x) => x.mm), [0, 0, 0.3, 1.2, 0.5, 0, 0, 0]);
+  assert.strictEqual(wd.days.length, 7);
+  assert.deepStrictEqual(wd.days[1], { date: '2026-11-24', max: 8, min: 3, pop: 90, mm: 6, wind: 30, uv: 0, sunrise: '08:12', sunset: '16:38', text: 'Lichte regen', night: false });
+  assert.deepStrictEqual(r.json.weather.days[0].text, 'Bewolkt');
+  console.log('ok  weerbericht: nu, 24 uur, regen per kwartier, 7 dagen');
+
+  r = await call(port, 'GET', '/api/state');
+  assert.deepStrictEqual(r.json.clocks.map((c) => c.name), ['Londen', 'New York', 'Tokio', 'Sydney'], 'standaardsteden');
+  assert.strictEqual(r.json.clocks[2].off, 540, 'Tokio is UTC+9');
+  r = await call(port, 'POST', '/api/setup', { clock: 'remove', index: 2 });
+  assert.deepStrictEqual(r.json.clocks.map((c) => c.name), ['Londen', 'New York', 'Sydney']);
+  r = await call(port, 'POST', '/api/setup', { clock: 'add', name: 'Tokio' });
+  assert.deepStrictEqual(r.json.clocks.map((c) => c.name), ['Londen', 'New York', 'Sydney', 'Tokio'], 'stad gevonden met tijdzone');
+  r = await call(port, 'POST', '/api/setup', { clock: 'move', index: 3, dir: -1 });
+  assert.deepStrictEqual(r.json.clocks.map((c) => c.name), ['Londen', 'New York', 'Tokio', 'Sydney']);
+  assert.strictEqual((await call(port, 'POST', '/api/setup', { clock: 'add', name: 'Nergenshuizen' })).status >= 400, true, 'onbekende stad');
+  assert.strictEqual((await call(port, 'POST', '/api/setup', { clock: 'move', index: 0, dir: -1 })).status >= 400, true);
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(cfgFile, 'utf8')).clocks.map((c) => c.tz), ['Europe/London', 'America/New_York', 'Asia/Tokyo', 'Australia/Sydney'], 'bewaard in config.json');
+  console.log('ok  wereldklok: tijdzones, toevoegen, verplaatsen, weghalen');
+
+  app.server.close(); hbMock.close(); sonosMock.close(); hueMock.close(); meteoMock.close();
   console.log('\nAlle tests geslaagd.');
 })().catch((e) => { console.error('MISLUKT:', e); process.exit(1); });
