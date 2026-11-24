@@ -100,6 +100,7 @@ hbMock.on('upgrade', (req, sock) => {
   sock.on('error', () => {});
 });
 
+let nightMode = 0;
 const sonosMock = http.createServer((req, res) => {
   let body = '';
   req.on('data', (c) => { body += c; });
@@ -120,9 +121,12 @@ const sonosMock = http.createServer((req, res) => {
         : '<CurrentURI>x-rincon-queue:RINCON_A#0</CurrentURI><CurrentURIMetaData></CurrentURIMetaData>',
       GetVolume: '<CurrentVolume>' + volume + '</CurrentVolume>',
       GetMute: '<CurrentMute>0</CurrentMute>',
+      GetEQ: /<EQType>NightMode</.test(body) ? '<CurrentValue>' + nightMode + '</CurrentValue>' : '',
+      SetEQ: '',
       Browse: '<Result>' + escx(/<ObjectID>FV:2/.test(body) ? favDidl : sqDidl) + '</Result><NumberReturned>2</NumberReturned>',
     };
     if (action === 'SetVolume') volume = Number(/<DesiredVolume>(\d+)/.exec(body)[1]);
+    if (action === 'SetEQ' && /<EQType>NightMode</.test(body)) { nightMode = Number(/<DesiredValue>(\d)/.exec(body)[1]); sonosLog.push('night=' + nightMode); }
     res.writeHead(200, { 'Content-Type': 'text/xml' });
     res.end(soapOut(action, map[action] || ''));
   });
@@ -236,7 +240,7 @@ function call(port, method, p, body) {
   assert.strictEqual(r.status, 200);
   const st = r.json;
   assert.strictEqual(st.homebridge.ok, true);
-  assert.deepStrictEqual(st.rooms.map((x) => x.name), ['Overig', 'Woonkamer']);
+  assert.deepStrictEqual(st.rooms.filter((x) => x.key !== 'sonos').map((x) => x.name), ['Overig', 'Woonkamer']);
   const wk = st.rooms[1].tiles;
   assert.deepStrictEqual(wk.map((t) => t.name), ['Leeslamp', 'Art Frame', 'Woonkamer TV'], 'customName, nameBasedUniqueId, hidden');
   assert.deepStrictEqual(st.rooms[0].tiles.map((t) => t.name), ['Temperatuur', 'Hue lamp via HB', 'Thermostaat']);
@@ -329,6 +333,25 @@ function call(port, method, p, body) {
     r = await call(port, 'POST', '/api/sonos', { action: 'rm -rf' });
     assert.strictEqual(r.status, 502);
     console.log('ok  sonos: nu speelt, hoes, volume, pauze, volgende');
+
+    /* Nachtgeluid: schakelaar in de 'kamer' Sonos, en via /api/sonos */
+    await new Promise((res2) => setTimeout(res2, 1600));
+    r = await call(port, 'GET', '/api/state');
+    assert.strictEqual(r.json.sonos.night, false);
+    let nt = r.json.rooms.filter((x) => x.key === 'sonos')[0].tiles[0];
+    assert.deepStrictEqual([nt.id, nt.name, nt.kind, nt.on, nt.text, nt.fault], ['sonos:night', 'Nachtgeluid', 'switch', false, 'Uit', false]);
+    r = await call(port, 'POST', '/api/set', { id: 'sonos:night', char: 'on', value: true });
+    assert.strictEqual(r.status, 200);
+    assert.ok(sonosLog.includes('night=1'), sonosLog.join(','));
+    r = await call(port, 'GET', '/api/state');
+    nt = r.json.rooms.filter((x) => x.key === 'sonos')[0].tiles[0];
+    assert.strictEqual(nt.on, true, 'nieuwe stand meteen zichtbaar');
+    r = await call(port, 'POST', '/api/sonos', { action: 'night' });
+    assert.strictEqual(nightMode, 0, 'zonder waarde: omzetten');
+    r = await call(port, 'POST', '/api/layout', { home: [{ type: 'device', ref: 'sonos:night', x: 0, y: 0, w: 1, h: 0.5 }] });
+    assert.strictEqual(r.status, 200, 'als halve tegel te plaatsen');
+    await call(port, 'POST', '/api/layout', { home: null });
+    console.log('ok  sonos: nachtgeluid aan/uit, als tegel en op de Sonos-pagina');
 
     await new Promise((res2) => setTimeout(res2, 2100));
     r = await call(port, 'GET', '/api/state');
@@ -490,7 +513,7 @@ function call(port, method, p, body) {
 
   await new Promise((res2) => setTimeout(res2, 2100)); // homebridge-cache laten verlopen
   r = await call(port, 'GET', '/api/state');
-  const hr = r.json.rooms;
+  const hr = r.json.rooms.filter((x) => x.key !== 'sonos');
   assert.deepStrictEqual(hr.map((x) => x.name), ['Zolderkamer', 'Beneden', 'Overig', 'Woonkamer']);
   assert.strictEqual(hr[1].zone, true); assert.strictEqual(hr[1].key, 'hue:zone:zn1');
   assert.strictEqual(hr[0].tiles.filter((t) => t.name === 'Gang spot 2')[0].room, 'Zolderkamer', 'kamer gaat voor zone');

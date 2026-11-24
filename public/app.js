@@ -87,6 +87,7 @@
   ICON.playpause = svg('<path d="M3 5.2v13.6a.8.8 0 0 0 1.2.7l9.6-6.8a.8.8 0 0 0 0-1.4L4.2 4.5a.8.8 0 0 0-1.2.7z"/><rect x="15" y="5" width="2.6" height="14" rx="1"/><rect x="19.4" y="5" width="2.6" height="14" rx="1"/>');
   function iconFor(t) {
     if (t.type === 'HueGroup' || t.isGroup) { return ICON.group; }
+    if (t.type === 'SonosNight') { return ICON.moon; }
     return ICON[t.kind] || ICON['switch'];
   }
   function weatherIcon(text, night) {
@@ -796,10 +797,12 @@
       '<div class="mu-ctrl"><div class="mu-btn mu-prev">' + ICON.prev + '</div><div class="mu-btn mu-play"></div><div class="mu-btn mu-next">' + ICON.next + '</div></div>' +
       '<div class="mu-vol"><div class="mu-mute"></div><div class="mu-btn mu-vdown">' + ICON.minus + '</div><div class="slider"><div class="slider-fill"></div><div class="slider-knob"></div></div>' +
       '<div class="mu-btn mu-vup">' + ICON.plus + '</div><div class="mu-volnum"></div></div></div>' +
-      '<div class="mu-right"><div class="mu-head">Favorieten</div><div class="mu-room"></div><div class="mu-favs scroll"></div></div>');
+      '<div class="mu-right"><div class="mu-head">Favorieten</div><div class="mu-room"></div><div class="mu-night">' + ICON.moon + '<span>Nachtgeluid</span></div><div class="mu-favs scroll"></div></div>');
     var q = function (c) { return f.getElementsByClassName(c)[0]; };
     muEls = { art: q('mu-art'), title: q('mu-title'), artist: q('mu-artist'), play: q('mu-play'), prev: q('mu-prev'), next: q('mu-next'),
-      mute: q('mu-mute'), volnum: q('mu-volnum'), room: q('mu-room'), favs: q('mu-favs'), lastArt: null, lastP: null, lastMute: null };
+      mute: q('mu-mute'), volnum: q('mu-volnum'), room: q('mu-room'), favs: q('mu-favs'), night: q('mu-night'), lastArt: null, lastP: null, lastMute: null };
+    /* Nachtgeluid: via dezelfde schakelaar als de tegel, zodat beide meteen meeveranderen. */
+    onTap(muEls.night, function () { var t = tileById['sonos:night']; if (t && !t.fault) { toggle(t); } });
     muEls.noart = muEls.art.children[0];
     favSig = '';
     volSlider = new Slider(f.getElementsByClassName('slider')[0], function (v) { sonosCmd('volume', v); });
@@ -861,6 +864,9 @@
       if (m.lastMute !== !!s.mute) { m.lastMute = !!s.mute; m.mute.innerHTML = s.mute ? ICON.muted : ICON.volume; }
       setText(m.room, s.room || '');
     }
+    var nt = tileById['sonos:night'];
+    m.night.style.display = nt ? '' : 'none';
+    if (nt) { setClass(m.night, 'is-on', !nt.fault && shown(nt).on); setClass(m.night, 'is-disabled', !!nt.fault); }
     paintFavs();
   }
   function paintFavs() {

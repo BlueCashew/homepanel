@@ -38,6 +38,7 @@
     'switch': svg('<path d="M12 3v8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M7 6.5a8 8 0 1 0 10 0" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>'),
     climate: svg('<path d="M12 2a3 3 0 0 0-3 3v8.3a5 5 0 1 0 6 0V5a3 3 0 0 0-3-3z"/>'),
     scene: svg('<path d="M12 2l2.2 5.8L20 10l-5.8 2.2L12 18l-2.2-5.8L4 10l5.8-2.2z"/>'),
+    moon: svg('<path d="M20.5 14.6A8.5 8.5 0 0 1 9.4 3.5a8.5 8.5 0 1 0 11.1 11.1z"/>'),
     sensor: svg('<circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/>'),
     clock: svg('<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>'),
     weather: svg('<path d="M7 19a4.5 4.5 0 0 1-.6-8.96 6 6 0 0 1 11.47 1.47A3.75 3.75 0 0 1 17.25 19H7z"/>'),
@@ -142,7 +143,7 @@
     }
     d = tileById[t.ref];
     if (!d) { return { name: 'Niet gevonden', kind: 'Verwijder of vervang', icon: ICON.sensor, missing: true }; }
-    return { name: d.name === 'Alle lampen' ? d.room : d.name, kind: d.name === 'Alle lampen' ? 'Alle lampen' : (d.isGroup ? 'Groep' : (d.room || '')), icon: d.type === 'HueGroup' || d.isGroup ? ICON.group : (ICON[d.kind] || ICON['switch']), on: d.on, scene: d.kind === 'scene' };
+    return { name: d.name === 'Alle lampen' ? d.room : d.name, kind: d.name === 'Alle lampen' ? 'Alle lampen' : (d.isGroup ? 'Groep' : (d.room || '')), icon: d.type === 'HueGroup' || d.isGroup ? ICON.group : (d.type === 'SonosNight' ? ICON.moon : (ICON[d.kind] || ICON['switch'])), on: d.on, scene: d.kind === 'scene' };
   }
   function pageName() { return cur < 0 ? 'Beginscherm' : pages[cur].name; }
   function drawTabs() {
@@ -391,7 +392,7 @@
       list.appendChild(txt(el('div', 'pk-group'), r.name + (r.zone ? ' (zone)' : '')));
       ds.forEach(function (d) {
         seen[d.id] = true;
-        var ic = d.type === 'HueGroup' || d.isGroup ? ICON.group : (ICON[d.kind] || ICON['switch']);
+        var ic = d.type === 'HueGroup' || d.isGroup ? ICON.group : (d.type === 'SonosNight' ? ICON.moon : (ICON[d.kind] || ICON['switch']));
         var small = d.isGroup ? 'groep' : (d.kind === 'climate' ? 'thermostaat' : (d.readonly ? 'sensor' : ''));
         item(list, ic, d.name === 'Alle lampen' ? 'Alle lampen in ' + r.name : d.name, small, u[d.id], function () { place({ type: 'device', ref: d.id }); });
       });

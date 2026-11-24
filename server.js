@@ -505,6 +505,10 @@ async function sonosLoad() {
         soap(host, 'av', 'GetMediaInfo', a),
         soap(host, 'rc', 'GetVolume', { InstanceID: 0, Channel: 'Master' }),
         soap(host, 'rc', 'GetMute', { InstanceID: 0, Channel: 'Master' }),
+        /* Nachtgeluid bestaat alleen op een soundbar; andere spelers geven een foutmelding. */
+        sonos.nightOk === false ? null : soap(host, 'rc', 'GetEQ', { InstanceID: 0, EQType: 'NightMode' }).then((x) => {
+          sonos.nightOk = true; return tag(x, 'CurrentValue') === '1';
+        }, () => { if (sonos.nightOk !== true) sonos.nightOk = false; return null; }),
       ]);
       const ts = tag(r[0], 'CurrentTransportState');
       const uri = unesc(tag(r[1], 'TrackURI'));
@@ -515,6 +519,7 @@ async function sonosLoad() {
         state: ts === 'PLAYING' || ts === 'TRANSITIONING' ? 'playing' : (ts === 'PAUSED_PLAYBACK' ? 'paused' : 'stopped'),
         source: 'music', title: unesc(tag(meta, 'title')), artist: unesc(tag(meta, 'creator')), album: unesc(tag(meta, 'album')),
         art: '', volume: Number(tag(r[3], 'CurrentVolume')) || 0, mute: tag(r[4], 'CurrentMute') === '1', canSkip: true,
+        night: typeof r[5] === 'boolean' ? r[5] : null,
       };
       if (/^x-sonos-htastream:/.test(uri)) {
         out.source = 'tv'; out.title = 'TV'; out.artist = ''; out.album = ''; out.canSkip = false;
@@ -573,9 +578,26 @@ async function sonosDo(action, value) {
     if (isNaN(v)) throw new Error('Ongeldig volume');
     await soap(host, 'rc', 'SetVolume', { InstanceID: 0, Channel: 'Master', DesiredVolume: v });
   } else if (action === 'mute') await soap(host, 'rc', 'SetMute', { InstanceID: 0, Channel: 'Master', DesiredMute: value ? 1 : 0 });
+  else if (action === 'night') {
+    let on = value;
+    if (typeof on !== 'boolean') { const cur = await sonosLoad(); on = !cur.night; }
+    await soap(host, 'rc', 'SetEQ', { InstanceID: 0, EQType: 'NightMode', DesiredValue: on ? 1 : 0 });
+    if (sonos.cache) sonos.cache.night = on;
+  }
   else if (action === 'favorite') { await playFavorite(String(value)); return; }
   else throw new Error('Onbekende Sonos-actie');
   sonos.cacheAt = 0;
+}
+
+/* Nachtgeluid als gewone schakelaar, zodat hij overal op het paneel kan staan. */
+function sonosRoom(s) {
+  if (!s || (sonos.nightOk !== true && typeof s.night !== 'boolean')) return null;
+  const known = s.ok && typeof s.night === 'boolean';
+  return { key: 'sonos', name: 'Sonos', tiles: [{
+    id: 'sonos:night', name: 'Nachtgeluid', type: 'SonosNight', kind: 'switch', room: 'Sonos',
+    on: known && s.night, text: known ? (s.night ? 'Aan' : 'Uit') : '', fault: !known, readonly: false,
+    char: 'on', onValue: true, offValue: false,
+  }] };
 }
 
 async function sonosArt(key) {
@@ -948,7 +970,7 @@ function defaultHome(rooms) {
     tiles.push({ type: 'weather', x: 2, y: 0, w: 2, h: 1 });
   }
   tiles.push({ type: 'nowplaying', x: 2, y: 1, w: 2, h: 1 });
-  const picks = all.filter((t) => t !== thermo && !t.readonly && (t.name === 'Alle lampen' || t.kind === 'switch' || t.kind === 'scene'));
+  const picks = all.filter((t) => t !== thermo && !t.readonly && t.type !== 'SonosNight' && (t.name === 'Alle lampen' || t.kind === 'switch' || t.kind === 'scene'));
   const seen = {};
   const uniq = picks.filter((t) => !seen[t.id] && (seen[t.id] = true));
   // Gewone tegels eerst, scènes en lampen daarna als halve tegels (twee per vak).
@@ -1756,6 +1778,8 @@ async function getState() {
     demo.rooms.forEach((r) => r.tiles.forEach((t) => { t.text = demoText(t); }));
     demo.rooms.forEach((r) => { r.key = r.key || 'hb:' + r.name; r.tiles.forEach((t) => { t.room = r.name; }); });
     const rooms = demo.rooms.map((r) => Object.assign({}, r, { tiles: r.tiles.slice() }));
+    if (typeof demo.sonos.night !== 'boolean') demo.sonos.night = false;
+    rooms.push(sonosRoom(demo.sonos));
     const lights = applyGroups(rooms);
     return { ok: true, demo: true, time: Date.now(), version: 'demo', homebridge: { ok: true }, rooms, lights, sonos: demo.sonos, weather: demo.weather, clocks: clocksOut(), layout: layoutOut(rooms), favorites: demo.favorites, atv: demo.atv };
   }
@@ -1788,6 +1812,8 @@ async function getState() {
   out.rooms.filter((r) => !r.zone).concat(out.rooms.filter((r) => r.zone)).forEach((r) => {
     r.tiles.forEach((t) => { if (!t.room) t.room = r.name; });
   });
+  const nightRoom = sonosRoom(out.sonos);
+  if (nightRoom) out.rooms.push(nightRoom);
   out.lights = applyGroups(out.rooms);
   out.layout = layoutOut(out.rooms);
   out.atv = atvOut();
@@ -1834,6 +1860,10 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && u.pathname === '/api/set') {
       const b = await readBody(req);
       if (typeof b.id !== 'string' || typeof b.char !== 'string' || ['boolean', 'number'].indexOf(typeof b.value) === -1) return json(res, 400, { ok: false, error: 'ongeldig verzoek' });
+      if (b.id === 'sonos:night') {
+        if (DEMO) demo.sonos.night = !!b.value; else await sonosDo('night', !!b.value);
+        return json(res, 200, { ok: true });
+      }
       if (b.id.indexOf('grp:') === 0) await groupSet(b.id, b.char, b.value);
       else await setOne(b.id, b.char, b.value);
       return json(res, 200, { ok: true });
@@ -1856,6 +1886,7 @@ const server = http.createServer(async (req, res) => {
         if (b.action === 'pause') s.state = 'paused';
         if (b.action === 'volume') s.volume = Math.max(0, Math.min(100, Math.round(Number(b.value) || 0)));
         if (b.action === 'mute') s.mute = !!b.value;
+        if (b.action === 'night') s.night = typeof b.value === 'boolean' ? b.value : !s.night;
         if (b.action === 'favorite') { const f = demo.favorites.filter((x) => x.id === b.value)[0]; if (f) { s.title = f.title; s.artist = f.desc; s.state = 'playing'; } }
       } else {
         await sonosDo(String(b.action), b.value);
