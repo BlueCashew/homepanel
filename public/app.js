@@ -797,12 +797,23 @@
       '<div class="mu-ctrl"><div class="mu-btn mu-prev">' + ICON.prev + '</div><div class="mu-btn mu-play"></div><div class="mu-btn mu-next">' + ICON.next + '</div></div>' +
       '<div class="mu-vol"><div class="mu-mute"></div><div class="mu-btn mu-vdown">' + ICON.minus + '</div><div class="slider"><div class="slider-fill"></div><div class="slider-knob"></div></div>' +
       '<div class="mu-btn mu-vup">' + ICON.plus + '</div><div class="mu-volnum"></div></div></div>' +
-      '<div class="mu-right"><div class="mu-head">Favorieten</div><div class="mu-room"></div><div class="mu-night">' + ICON.moon + '<span>Nachtgeluid</span></div><div class="mu-favs scroll"></div></div>');
+      '<div class="mu-right"><div class="mu-head">Favorieten</div><div class="mu-room"></div><div class="mu-favs scroll"></div></div>');
     var q = function (c) { return f.getElementsByClassName(c)[0]; };
     muEls = { art: q('mu-art'), title: q('mu-title'), artist: q('mu-artist'), play: q('mu-play'), prev: q('mu-prev'), next: q('mu-next'),
-      mute: q('mu-mute'), volnum: q('mu-volnum'), room: q('mu-room'), favs: q('mu-favs'), night: q('mu-night'), lastArt: null, lastP: null, lastMute: null };
-    /* Nachtgeluid: via dezelfde schakelaar als de tegel, zodat beide meteen meeveranderen. */
-    onTap(muEls.night, function () { var t = tileById['sonos:night']; if (t && !t.fault) { toggle(t); } });
+      mute: q('mu-mute'), volnum: q('mu-volnum'), room: q('mu-room'), favs: q('mu-favs'), lastArt: null, lastP: null, lastMute: null };
+    /* Knoppen onder het volume. Ze bedienen dezelfde schakelaars als de tegels, zodat alles gelijk loopt. */
+    muEls.sw = [
+      { find: function () { return tileById['sonos:night']; }, icon: ICON.moon, label: 'Nachtgeluid' },
+      { find: surroundTile, icon: ICON.volume, label: 'Surrounds' },
+    ];
+    muEls.swBox = el('div', 'mu-sw');
+    muEls.sw.forEach(function (b) {
+      b.el = el('div', 'mu-pill', b.icon + '<span></span>');
+      setText(b.el.children[1], b.label);
+      onTap(b.el, function () { var t = b.find(); if (t && !t.fault && !t.readonly) { toggle(t); } });
+      muEls.swBox.appendChild(b.el);
+    });
+    q('mu-left').appendChild(muEls.swBox);
     muEls.noart = muEls.art.children[0];
     favSig = '';
     volSlider = new Slider(f.getElementsByClassName('slider')[0], function (v) { sonosCmd('volume', v); });
@@ -844,6 +855,15 @@
     e.addEventListener('touchcancel', stop, false);
     e.addEventListener('click', function (ev) { if (ev.__tapTaken || Date.now() - lastTouch < 800) { return; } ev.__tapTaken = true; fn(); }, false);
   }
+  /* De Surrounds-schakelaar uit Homebridge, herkend aan de naam. */
+  function surroundTile() {
+    var id, t;
+    for (id in tileById) {
+      t = tileById[id];
+      if (t && t.kind === 'switch' && t.type !== 'SonosNight' && /surround/i.test(t.name || '')) { return t; }
+    }
+    return null;
+  }
   function paintMusic() {
     var s = state && state.sonos, m = muEls, p, url;
     if (!m) { return; }
@@ -864,9 +884,11 @@
       if (m.lastMute !== !!s.mute) { m.lastMute = !!s.mute; m.mute.innerHTML = s.mute ? ICON.muted : ICON.volume; }
       setText(m.room, s.room || '');
     }
-    var nt = tileById['sonos:night'];
-    m.night.style.display = nt ? '' : 'none';
-    if (nt) { setClass(m.night, 'is-on', !nt.fault && shown(nt).on); setClass(m.night, 'is-disabled', !!nt.fault); }
+    m.sw.forEach(function (b) {
+      var t = b.find();
+      b.el.style.display = t ? '' : 'none';
+      if (t) { setClass(b.el, 'is-on', !t.fault && !!shown(t).on); setClass(b.el, 'is-disabled', !!t.fault); }
+    });
     paintFavs();
   }
   function paintFavs() {

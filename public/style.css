@@ -460,11 +460,12 @@ body.mode-dark.theme-zand { background: #1a1917; color: #ece6dc;
 .mode-dark.theme-zand .wd-range { background: rgba(255,255,255,.14); }
 .mode-dark.theme-zand .wc-dial { fill: rgba(255,255,255,.1); }
 
-/* Nachtgeluid op de Sonos-pagina */
-.mu-night { position: absolute; right: 0; top: 4px; height: 44px; line-height: 44px; padding: 0 18px 0 46px; border-radius: 22px; background: rgba(255,255,255,.14); font-size: 16px; font-weight: 600; cursor: pointer; }
-.mu-night svg { position: absolute; left: 16px; top: 12px; width: 20px; height: 20px; }
-.mu-night.is-on { background: #f4f0e6; color: #2b2210; }
-.mu-night.is-disabled { opacity: .4; }
-.mu-night.is-down { opacity: .6; }
-.theme-zand .mu-night { background: rgba(45,38,29,.08); }
-.theme-zand .mu-night.is-on { background: #2d261d; color: #f4f0e6; }
+/* Schakelaars onder het volume op de Sonos-pagina (nachtgeluid, surrounds) */
+.mu-sw { position: relative; height: 48px; margin-top: 10px; }
+.mu-pill { position: relative; float: left; height: 44px; line-height: 44px; margin-right: 10px; padding: 0 18px 0 46px; border-radius: 22px; background: rgba(255,255,255,.14); font-size: 16px; font-weight: 600; cursor: pointer; }
+.mu-pill svg { position: absolute; left: 16px; top: 12px; width: 20px; height: 20px; }
+.mu-pill.is-on { background: #f4f0e6; color: #2b2210; }
+.mu-pill.is-disabled { opacity: .4; }
+.mu-pill.is-down { opacity: .6; }
+.theme-zand .mu-pill { background: rgba(45,38,29,.08); }
+.theme-zand .mu-pill.is-on { background: #2d261d; color: #f4f0e6; }
